@@ -44,9 +44,13 @@ DEFAULT_JSON_FILE = 'board-%d.json' % DEFAULT_BD_API
 TYPE_LENGTH_SIZE = 8
 
 ATH11K_BD_IE_BOARD = 0
+ATH11K_BD_IE_BOARD_EXT = 1
 
 ATH11K_BD_IE_BOARD_NAME = 0
 ATH11K_BD_IE_BOARD_DATA = 1
+
+ATH11K_BD_IE_BOARD_EXT_NAME = 0
+ATH11K_BD_IE_BOARD_EXT_DATA = 1
 
 
 def padding_needed(len):
@@ -98,8 +102,12 @@ class BoardName():
 
         return self
 
-    def add_to_buf(self, buf, offset):
-        return add_ie(buf, offset, ATH11K_BD_IE_BOARD_NAME, str(self.name))
+    def add_to_buf(self, ebdf, buf, offset):
+        ie_id = ATH11K_BD_IE_BOARD_NAME
+        if ebdf:
+            ie_id = ATH11K_BD_IE_BOARD_EXT_NAME
+
+        return add_ie(buf, offset, ie_id, str(self.name))
 
     def __eq__(self, other):
         return self.name == other.name
@@ -126,8 +134,12 @@ class BoardData():
 
         return self
 
-    def add_to_buf(self, buf, offset):
-        return add_ie(buf, offset, ATH11K_BD_IE_BOARD_DATA, self.data)
+    def add_to_buf(self, ebdf, buf, offset):
+        ie_id = ATH11K_BD_IE_BOARD_DATA
+        if ebdf:
+            ie_id = ATH11K_BD_IE_BOARD_EXT_DATA
+
+        return add_ie(buf, offset, ie_id, self.data)
 
     def __repr__(self):
         return self.__str__()
@@ -165,9 +177,12 @@ class Board():
             offset += TYPE_LENGTH_SIZE
             length -= TYPE_LENGTH_SIZE
 
-            if ie_id == ATH11K_BD_IE_BOARD_NAME:
+            # FIXME: create separate ExtenderBoard() class so that we
+            # don't need these "or" hacks here. Maybe add a common
+            # abstract class to avoid code duplication?
+            if ie_id == ATH11K_BD_IE_BOARD_NAME or ie_id == ATH11K_BD_IE_BOARD_EXT_NAME:
                 self.names.append(BoardName.parse_ie(buf, offset, ie_len))
-            elif ie_id == ATH11K_BD_IE_BOARD_DATA:
+            elif ie_id == ATH11K_BD_IE_BOARD_DATA or ie_id == ATH11K_BD_IE_BOARD_EXT_DATA:
                 self.data = BoardData.parse_ie(buf, offset, ie_len)
 
             offset += ie_len + padding_needed(ie_len)
@@ -181,14 +196,19 @@ class Board():
 
         offset += TYPE_LENGTH_SIZE
 
-        for name in self.names:
-            offset = name.add_to_buf(buf, offset)
+        ie_id = ATH11K_BD_IE_BOARD
 
-        offset = self.data.add_to_buf(buf, offset)
+        if self.ebdf:
+            ie_id = ATH11K_BD_IE_BOARD_EXT
+
+        for name in self.names:
+            offset = name.add_to_buf(self.ebdf, buf, offset)
+
+        offset = self.data.add_to_buf(self.ebdf, buf, offset)
 
         # write ie header as now we know the full length
         ie_len = offset - ie_offset - TYPE_LENGTH_SIZE
-        struct.pack_into('<2i', buf, ie_offset, ATH11K_BD_IE_BOARD, ie_len)
+        struct.pack_into('<2i', buf, ie_offset, ie_id, ie_len)
 
         return offset
 
@@ -212,16 +232,21 @@ class Board():
     def __init__(self):
         self.data = None
         self.names = []
+        self.ebdf = False
 
 
 class BoardContainer:
 
     def add_board(self, data, names):
         boardnames = []
+        ebdf = False
         for name in names:
+            if "bmi-eboard-id" in name:
+                ebdf = True
             boardnames.append(BoardName(name))
 
         board = Board()
+        board.ebdf = ebdf
         board.data = BoardData(data)
         board.names = boardnames
 
@@ -319,7 +344,9 @@ class BoardContainer:
                                                                   buf_len)
                 return 1
 
-            if ie_id == ATH11K_BD_IE_BOARD:
+            # FIXME: create separate ExtenderBoard() class and
+            # self.extender_boards list
+            if ie_id == ATH11K_BD_IE_BOARD or ie_id == ATH11K_BD_IE_BOARD_EXT:
                 self.boards.append(Board.parse_ie(buf, offset, ie_len))
 
             offset += ie_len + padding_needed(ie_len)
