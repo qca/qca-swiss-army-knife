@@ -30,6 +30,7 @@ import subprocess
 import logging
 import sys
 import shutil
+import mailbox
 
 MAX_BUF_LEN = 2000000
 
@@ -42,6 +43,9 @@ DEFAULT_BD_API = 2
 DEFAULT_BOARD_FILE = 'board-%d.bin' % DEFAULT_BD_API
 DEFAULT_JSON_FILE = 'board-%d.json' % DEFAULT_BD_API
 TYPE_LENGTH_SIZE = 8
+BIN_SUFFIX = '.bin'
+
+ATH11K_FIRMWARE_URL = 'https://github.com/kvalo/ath11k-firmware/commit'
 
 ATH11K_BD_IE_BOARD = 0
 ATH11K_BD_IE_BOARD_EXT = 1
@@ -74,6 +78,12 @@ def add_ie(buf, offset, id, value):
     offset = offset + TYPE_LENGTH_SIZE + len(value) + padding_len
 
     return offset
+
+
+def xclip(msg):
+    p = subprocess.Popen(['xclip', '-selection', 'clipboard'],
+                         stdin=subprocess.PIPE)
+    p.communicate(msg)
 
 
 # to workaround annoying python feature of returning negative hex values
@@ -237,10 +247,21 @@ class Board():
 
 class BoardContainer:
 
+    def find_board(self, name):
+        for board in self.boards:
+            for boardname in board.names:
+                if name == boardname.name:
+                    return board
+
     def add_board(self, data, names):
         boardnames = []
         ebdf = False
+
         for name in names:
+            b = self.find_board(name)
+            if b:
+                self.boards.remove(b)
+
             if "bmi-eboard-id" in name:
                 ebdf = True
             boardnames.append(BoardName(name))
@@ -573,6 +594,69 @@ def cmd_add_board(args):
     os.remove(temp_pathname)
 
 
+def git_get_head_id():
+    return subprocess.check_output(['git', 'log', '--format=format:%H', '-1'])
+
+
+def cmd_add_mbox(args):
+    board_filename = args.add_mbox[0]
+    mbox_filename = args.add_mbox[1]
+
+    mbox = mailbox.mbox(mbox_filename)
+
+    for msg in mbox:
+        board_files = {}
+
+        for part in msg.walk():
+            filename = part.get_filename()
+
+            if not filename:
+                # not an attachment
+                continue
+
+            if not filename.endswith(BIN_SUFFIX):
+                continue
+
+            name = filename.rstrip(BIN_SUFFIX)
+            board_files[name] = part.get_payload(decode=True)
+
+        print 'Found mail "%s" with %d board files' % (msg['Subject'],
+                                                       len(board_files))
+
+        # copy the original file for diff
+        (temp_fd, temp_pathname) = tempfile.mkstemp()
+        shutil.copyfile(board_filename, temp_pathname)
+
+        container = BoardContainer.open(board_filename)
+        for name, data in board_files.iteritems():
+            names = [name]
+            container.add_board(data, names)
+
+        container.write(board_filename)
+
+        applied_msg = ''
+
+        if args.commit:
+            cmd = ['git', 'commit', '--quiet', '-m', msg['Subject'], board_filename]
+            subprocess.check_call(cmd)
+
+            applied_msg += 'Thanks, added to %s:\n\n' % (board_filename)
+
+        applied_msg += diff_boardfiles(temp_pathname, board_filename, False)
+        applied_msg += '\n\n'
+
+        if args.commit:
+            applied_msg += '%s/%s\n\n' % (ATH11K_FIRMWARE_URL, git_get_head_id())
+
+        os.remove(temp_pathname)
+
+        print '----------------------------------------------'
+        print applied_msg
+        print '----------------------------------------------'
+
+        xclip(applied_msg)
+
+
 def main():
     description = '''ath11k board-N.bin files manegement tool
 
@@ -614,6 +698,11 @@ can use --extract switch to see examples from real board-N.bin files.
     cmd_group.add_argument('-a', '--add-board', metavar='NAME', nargs='+',
                            help='add a board file to an existing board-N.bin, first argument is the filename of board-N.bin to add to, second is the filename board file (board.bin) to add and then followed by one or more arguments are names used in board-N.bin')
 
+    cmd_group.add_argument('-A', '--add-mbox', metavar='FILENAME', nargs=2,
+                           help='FIXME')
+
+    parser.add_argument('-C', '--commit', action='store_true',
+                        help='commit changes to a git repository')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='enable verbose (debug) messages')
     parser.add_argument("-o", "--output", metavar="BOARD_FILE",
@@ -637,6 +726,8 @@ can use --extract switch to see examples from real board-N.bin files.
         return cmd_diff(args)
     elif args.add_board:
         return cmd_add_board(args)
+    elif args.add_mbox:
+        return cmd_add_mbox(args)
 
 if __name__ == "__main__":
     main()
