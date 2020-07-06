@@ -195,7 +195,7 @@ class FirmwareContainer:
                 continue
 
             max_set = i
-            index = i / 8
+            index = int(i / 8)
             bit = i % 8
             bytes[index] = bytes[index] | (1 << bit)
 
@@ -245,7 +245,7 @@ class FirmwareContainer:
             struct.pack_into('<B', padding, i, 0x77)
 
         fmt = '<%dsb%ds' % (len(signature), padding_len)
-        struct.pack_into(fmt, self.buf, 0, signature, 0, padding.raw)
+        struct.pack_into(fmt, self.buf, 0, signature.encode('utf-8'), 0, padding.raw)
         self.buf_len = length
 
     def write(self, name):
@@ -267,7 +267,7 @@ class FirmwareContainer:
         (signature, null) = struct.unpack_from(fmt, self.buf, offset)
         offset = offset + self.signature_len + 1
 
-        if signature != self.signature or null != 0:
+        if signature.decode('utf-8') != self.signature or null != 0:
             logger.error("Invalid signature!")
             return False
 
@@ -577,7 +577,7 @@ def is_int(val):
 
 
 def write_file(filename, buf):
-    f = open(filename, 'w')
+    f = open(filename, 'wb')
     f.write(buf)
     f.close
 
