@@ -620,8 +620,8 @@ def cmd_add_mbox(args):
             name = filename.rstrip(BIN_SUFFIX)
             board_files[name] = part.get_payload(decode=True)
 
-        print 'Found mail "%s" with %d board files' % (msg['Subject'],
-                                                       len(board_files))
+        print('Found mail "%s" with %d board files' % (msg['Subject'],
+                                                       len(board_files)))
 
         # copy the original file for diff
         (temp_fd, temp_pathname) = tempfile.mkstemp()
@@ -650,9 +650,9 @@ def cmd_add_mbox(args):
 
         os.remove(temp_pathname)
 
-        print '----------------------------------------------'
-        print applied_msg
-        print '----------------------------------------------'
+        print('----------------------------------------------')
+        print(applied_msg)
+        print('----------------------------------------------')
 
         xclip(applied_msg)
 

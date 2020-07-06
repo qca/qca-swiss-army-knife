@@ -25,7 +25,10 @@ import sys
 import argparse
 import re
 import tempfile
-import Queue
+try:
+    import queue as Queue
+except ImportError:
+    import Queue
 import threading
 import string
 import hashlib
@@ -149,7 +152,7 @@ def run_gcc(args):
                 logger.debug('FILTERED: %s' % line)
                 continue
 
-            print line.strip()
+            print(line.strip())
 
     return p.returncode
 
@@ -170,7 +173,7 @@ def run_sparse(args):
                 logger.debug('FILTERED: %s' % line)
                 continue
 
-            print line.strip()
+            print(line.strip())
 
     return p.returncode
 
@@ -258,7 +261,7 @@ def run_checkpatch_cmd(args, q, tag_map):
                 continue
 
             logger.debug(w)
-            print '%s:%s: %s' % (w.path, w.lineno, w.msg)
+            print('%s:%s: %s' % (w.path, w.lineno, w.msg))
 
         q.task_done()
 
@@ -365,12 +368,12 @@ def show_version(args):
     except:
         pass
 
-    print 'ath10k-check (md5sum %s)' % (ath10kcheck_md5sum)
+    print('ath10k-check (md5sum %s)' % (ath10kcheck_md5sum))
     print
-    print 'gcc:\t\t%s' % (gcc_version)
-    print 'sparse:\t\t%s' % (sparse_version)
-    print 'checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum)
-    print 'gtags:\t\t%s' % (gtags_version)
+    print('gcc:\t\t%s' % (gcc_version))
+    print('sparse:\t\t%s' % (sparse_version))
+    print('checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum))
+    print('gtags:\t\t%s' % (gtags_version))
 
     sys.exit(0)
 
@@ -462,7 +465,7 @@ $CHECKPATCH_CMDLINE
 
     try:
         cores = subprocess.check_output(['nproc'])
-    except OSError, subprocess.CalledProcessError:
+    except (OSError, subprocess.CalledProcessError):
         cores = '4'
         logger.warning('Failed to run nproc, assuming %s cores' % (cores))
 

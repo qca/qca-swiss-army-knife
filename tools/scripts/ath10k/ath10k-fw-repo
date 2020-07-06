@@ -110,7 +110,7 @@ class FirmwareBranch():
 
                     self.priority = int(buf)
                 except Exception as e:
-                    print 'Failed to read %s: %s' % (priority_path, e)
+                    print('Failed to read %s: %s' % (priority_path, e))
 
 
 class BoardFile():
@@ -400,7 +400,7 @@ def get_board_crc32(path):
 
 # print indent
 def pi(level, msg):
-    print '%s%s' % (level * '\t', msg)
+    print('%s%s' % (level * '\t', msg))
 
 
 def whence_update(linux_firmware, firmware_path, version):
@@ -416,7 +416,7 @@ def whence_update(linux_firmware, firmware_path, version):
     (buf, sub_count) = re.subn(pattern, replace, buf, flags=re.MULTILINE)
 
     if sub_count != 1:
-        print 'Failed to update %s to WHENCE: %d' % (firmware_path, sub_count)
+        print('Failed to update %s to WHENCE: %d' % (firmware_path, sub_count))
         return
 
     f = open(os.path.join(linux_firmware, WHENCE_FILE), 'w')
@@ -443,7 +443,7 @@ def whence_add(linux_firmware, firmware_path, version, license_path=None):
     (buf, sub_count) = re.subn(pattern, replace, buf, flags=re.MULTILINE | re.DOTALL)
 
     if sub_count != 1:
-        print 'Failed to add %s to WHENCE: %d' % (firmware_path, sub_count)
+        print('Failed to add %s to WHENCE: %d' % (firmware_path, sub_count))
         return
 
     f = open(os.path.join(linux_firmware, WHENCE_FILE), 'w')
@@ -517,11 +517,11 @@ def cmd_list_lib_dir(args):
     ath10k_dir = os.path.join(fw_dir, 'ath10k')
 
     if not os.path.exists(ath10k_dir):
-        print 'directory %s does not exist, aborting' % (ath10k_dir)
+        print('directory %s does not exist, aborting' % (ath10k_dir))
         sys.exit(1)
 
     if not os.path.isdir(ath10k_dir):
-        print '%s is not a directory, aborting' % (ath10k_dir)
+        print('%s is not a directory, aborting' % (ath10k_dir))
         sys.exit(1)
 
     # sort the results based on dirpath
@@ -568,7 +568,7 @@ def cmd_get_latest_in_branch(args):
     hw_name = '%s %s' % (args_hw, args_hwver)
 
     if hw_name not in hws:
-        print 'Did not find hardware: %s' % (hw_name)
+        print('Did not find hardware: %s' % (hw_name))
         sys.exit(1)
 
     hw = hws[hw_name]
@@ -581,14 +581,14 @@ def cmd_get_latest_in_branch(args):
             break
 
     if fw_branch is None:
-        print 'Did not find firmware branch: %s' % (args_fwbranch)
+        print('Did not find firmware branch: %s' % (args_fwbranch))
         sys.exit(1)
 
     if len(fw_branch.firmwares) == 0:
         # no firmware images in this branch, just use return value 0 with no output
         sys.exit(0)
 
-    print sorted(fw_branch.firmwares)[-1].path
+    print(sorted(fw_branch.firmwares)[-1].path)
 
     sys.exit(0)
 
@@ -609,7 +609,7 @@ def cmd_get_latest_in_hw(args):
     hw_name = '%s %s' % (args_hw, args_hwver)
 
     if hw_name not in hws:
-        print 'Did not find hardware: %s' % (hw_name)
+        print('Did not find hardware: %s' % (hw_name))
         sys.exit(1)
 
     hw = hws[hw_name]
@@ -620,7 +620,7 @@ def cmd_get_latest_in_hw(args):
         # no firmware images in this branch, just use return value 0 with no output
         sys.exit(0)
 
-    print sorted(fw_branch.firmwares)[-1].path
+    print(sorted(fw_branch.firmwares)[-1].path)
 
     sys.exit(0)
 
