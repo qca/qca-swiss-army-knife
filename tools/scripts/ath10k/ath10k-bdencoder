@@ -34,7 +34,9 @@ MAX_BUF_LEN = 2000000
 
 # the signature length also includes null byte and padding
 ATH10K_BOARD_SIGNATURE = b"QCA-ATH10K-BOARD"
-ATH10K_BOARD_SIGNATURE_LEN = 20
+ATH11K_BOARD_SIGNATURE = b"QCA-ATH11K-BOARD"
+BOARD_SIGNATURE = b''
+BOARD_SIGNATURE_LEN = 20
 
 PADDING_MAGIC = 0x6d
 DEFAULT_BD_API = 2
@@ -44,6 +46,7 @@ TYPE_LENGTH_SIZE = 8
 BIN_SUFFIX = '.bin'
 
 ATH10K_FIRMWARE_URL = 'https://github.com/kvalo/ath10k-firmware/commit'
+ATH11K_FIRMWARE_URL = 'https://github.com/kvalo/ath11k-firmware/commit'
 
 ATH10K_BD_IE_BOARD = 0
 ATH10K_BD_IE_BOARD_EXT = 1
@@ -311,7 +314,7 @@ class BoardContainer:
                 allnames.append(name)
 
     def _add_signature(self, buf, offset):
-        signature = ATH10K_BOARD_SIGNATURE + b'\0'
+        signature = BOARD_SIGNATURE + b'\0'
         length = len(signature)
         pad_len = padding_needed(length)
         length = length + pad_len
@@ -325,8 +328,8 @@ class BoardContainer:
         struct.pack_into(fmt, buf, offset, signature, padding.raw)
         offset += length
 
-        # make sure ATH10K_BOARD_SIGNATURE_LEN is correct
-        assert(ATH10K_BOARD_SIGNATURE_LEN == length)
+        # make sure BOARD_SIGNATURE_LEN is correct
+        assert(BOARD_SIGNATURE_LEN == length)
 
         return offset
 
@@ -343,14 +346,14 @@ class BoardContainer:
 
         offset = 0
 
-        fmt = '<%dsb' % (len(ATH10K_BOARD_SIGNATURE))
+        fmt = '<%dsb' % (len(BOARD_SIGNATURE))
         (signature, null) = struct.unpack_from(fmt, buf, offset)
 
-        if signature != ATH10K_BOARD_SIGNATURE or null != 0:
+        if signature != BOARD_SIGNATURE or null != 0:
             print("invalid signature found in %s" % name)
             return 1
 
-        offset += ATH10K_BOARD_SIGNATURE_LEN
+        offset += BOARD_SIGNATURE_LEN
 
         # looping main IEs
         while offset < buf_len:
@@ -600,6 +603,11 @@ def git_get_head_id():
 
 
 def cmd_add_mbox(args):
+    if args.mode == 10:
+        firmware_url = ATH10K_FIRMWARE_URL
+    elif args.mode == 11:
+        firmware_url = ATH10K_FIRMWARE_URL
+
     board_filename = args.add_mbox[0]
     mbox_filename = args.add_mbox[1]
 
@@ -658,8 +666,19 @@ def cmd_add_mbox(args):
         xclip(applied_msg)
 
 
+def mode_parse(v):
+    if v == 'ath10k':
+        return 10
+    elif v == 'ath11k':
+        return 11
+    else:
+        raise argparse.ArgumentTypeError('ath10k or ath11k expected.')
+
+
 def main():
-    description = '''ath10k board-N.bin files manegement tool
+    global BOARD_SIGNATURE
+
+    description = '''ath10k/ath11k board-N.bin files management tool
 
 ath10k-bdencoder is for creating (--create), listing (--info) and
 comparing (--diff, --diffstat) ath10k board-N.bin files. The
@@ -709,11 +728,19 @@ can use --extract switch to see examples from real board-N.bin files.
     parser.add_argument("-o", "--output", metavar="BOARD_FILE",
                         help='name of the output file, otherwise the default is: %s' %
                         (DEFAULT_BOARD_FILE))
+    parser.add_argument("-m", "--mode", metavar='MODE',
+                        help='select between ath10k and ath11k mode (default: ath10k)',
+                        default=10, type=mode_parse)
 
     args = parser.parse_args()
 
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
+
+    if args.mode == 10:
+        BOARD_SIGNATURE = ATH10K_BOARD_SIGNATURE
+    elif args.mode == 11:
+        BOARD_SIGNATURE = ATH11K_BOARD_SIGNATURE
 
     if args.create:
         return cmd_create(args)
