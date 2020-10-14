@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2015-2017 Qualcomm Atheros, Inc.
 # Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
@@ -35,7 +35,7 @@ import mailbox
 MAX_BUF_LEN = 2000000
 
 # the signature length also includes null byte and padding
-ATH11K_BOARD_SIGNATURE = "QCA-ATH11K-BOARD"
+ATH11K_BOARD_SIGNATURE = b"QCA-ATH11K-BOARD"
 ATH11K_BOARD_SIGNATURE_LEN = 20
 
 PADDING_MAGIC = 0x6d
@@ -74,6 +74,8 @@ def add_ie(buf, offset, id, value):
         struct.pack_into('<B', padding, i, PADDING_MAGIC)
 
     fmt = '<2i%ds%ds' % (len(value), padding_len)
+    if not isinstance(value, bytes):
+        value = value.encode()
     struct.pack_into(fmt, buf, offset, id, len(value), value, padding.raw)
     offset = offset + TYPE_LENGTH_SIZE + len(value) + padding_len
 
@@ -83,7 +85,7 @@ def add_ie(buf, offset, id, value):
 def xclip(msg):
     p = subprocess.Popen(['xclip', '-selection', 'clipboard'],
                          stdin=subprocess.PIPE)
-    p.communicate(msg)
+    p.communicate(msg.encode())
 
 
 # to workaround annoying python feature of returning negative hex values
@@ -105,7 +107,8 @@ class BoardName():
     def parse_ie(buf, offset, length):
         self = BoardName()
         fmt = '<%ds' % length
-        (self.name, ) = struct.unpack_from(fmt, buf, offset)
+        (name, ) = struct.unpack_from(fmt, buf, offset)
+        self.name = name.decode()
 
         logging.debug('BoardName.parse_ie(): offset %d length %d self %s' %
                       (offset, length, self))
@@ -278,7 +281,7 @@ class BoardContainer:
         self = BoardContainer()
 
         if not os.path.exists(filename):
-            print 'mapping file %s not found' % (filename)
+            print('mapping file %s not found' % (filename))
             return
 
         f = open(filename, 'r')
@@ -304,13 +307,13 @@ class BoardContainer:
                     # TODO: Find a better way to report problems,
                     # maybe return a list of strings? Or use an
                     # exception?
-                    print 'Warning: duplicate board name: %s' % (name.name)
+                    print('Warning: duplicate board name: %s' % (name.name))
                     return
 
                 allnames.append(name)
 
     def _add_signature(self, buf, offset):
-        signature = ATH11K_BOARD_SIGNATURE + '\0'
+        signature = ATH11K_BOARD_SIGNATURE + b'\0'
         length = len(signature)
         pad_len = padding_needed(length)
         length = length + pad_len
@@ -346,7 +349,7 @@ class BoardContainer:
         (signature, null) = struct.unpack_from(fmt, buf, offset)
 
         if signature != ATH11K_BOARD_SIGNATURE or null != 0:
-            print "invalid signature found in %s" % name
+            print("invalid signature found in %s" % name)
             return 1
 
         offset += ATH11K_BOARD_SIGNATURE_LEN
@@ -360,9 +363,9 @@ class BoardContainer:
             offset += TYPE_LENGTH_SIZE
 
             if offset + ie_len > buf_len:
-                print 'Error: Buffer too short (%d + %d > %d)' % (offset,
+                print('Error: Buffer too short (%d + %d > %d)' % (offset,
                                                                   ie_len,
-                                                                  buf_len)
+                                                                  buf_len))
                 return 1
 
             # FIXME: create separate ExtenderBoard() class and
@@ -385,7 +388,7 @@ class BoardContainer:
 
         self.validate()
 
-        print "board binary file '%s' is created" % name
+        print("board binary file '%s' is created" % name)
 
     def get_bin(self):
         buf = ctypes.create_string_buffer(MAX_BUF_LEN)
@@ -445,18 +448,18 @@ def cmd_extract(args):
         b['data'] = filename
         mapping.append(b)
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(board.data.data)
         f.close()
 
-        print "%s created size: %d" % (filename, len(board.data.data))
+        print("%s created size: %d" % (filename, len(board.data.data)))
 
     filename = DEFAULT_JSON_FILE
     f = open(filename, 'w')
     f.write(json.dumps(mapping, indent=4))
     f.close()
 
-    print "%s created" % (filename)
+    print("%s created" % (filename))
 
 
 def cmd_info(args):
@@ -464,7 +467,7 @@ def cmd_info(args):
 
     cont = BoardContainer().open(filename)
 
-    print cont.get_summary()
+    print(cont.get_summary())
 
 
 def cmd_diff(args):
@@ -475,7 +478,7 @@ def cmd_diff(args):
         filename1 = args.diffstat[0]
         filename2 = args.diffstat[1]
 
-    print diff_boardfiles(filename1, filename2, args.diff)
+    print(diff_boardfiles(filename1, filename2, args.diff))
 
 
 def diff_boardfiles(filename1, filename2, diff):
@@ -483,11 +486,11 @@ def diff_boardfiles(filename1, filename2, diff):
 
     container1 = BoardContainer().open(filename1)
     (temp1_fd, temp1_pathname) = tempfile.mkstemp()
-    os.write(temp1_fd, container1.get_summary(sort=True))
+    os.write(temp1_fd, container1.get_summary(sort=True).encode())
 
     container2 = BoardContainer().open(filename2)
     (temp2_fd, temp2_pathname) = tempfile.mkstemp()
-    os.write(temp2_fd, container2.get_summary(sort=True))
+    os.write(temp2_fd, container2.get_summary(sort=True).encode())
 
     # this function is used both with --diff and --diffstat
     if diff:
@@ -503,13 +506,13 @@ def diff_boardfiles(filename1, filename2, diff):
             if e.returncode == 1:
                 output = e.output
             else:
-                print 'Failed to run wdiff: %d\n%s' % (e.returncode, e.output)
+                print('Failed to run wdiff: %d\n%s' % (e.returncode, e.output))
                 return 1
         except OSError as e:
-            print 'Failed to run wdiff: %s' % (e)
+            print('Failed to run wdiff: %s' % (e))
             return 1
 
-        result += '%s\n' % (output)
+        result += '%s\n' % (output.decode())
 
     # create simple statistics about changes in board images
 
@@ -570,14 +573,14 @@ def cmd_create(args):
 
 def cmd_add_board(args):
     if len(args.add_board) < 3:
-        print 'error: --add-board requires 3 or more arguments, only %d given' % (len(args.add_board))
+        print('error: --add-board requires 3 or more arguments, only %d given' % (len(args.add_board)))
         sys.exit(1)
 
     board_filename = args.add_board[0]
     new_filename = args.add_board[1]
     new_names = args.add_board[2:]
 
-    f = open(new_filename, 'r')
+    f = open(new_filename, 'rb')
     new_data = f.read()
     f.close()
 
@@ -589,7 +592,7 @@ def cmd_add_board(args):
     container.add_board(new_data, new_names)
     container.write(board_filename)
 
-    print diff_boardfiles(temp_pathname, board_filename, False)
+    print(diff_boardfiles(temp_pathname, board_filename, False))
 
     os.remove(temp_pathname)
 
@@ -620,15 +623,15 @@ def cmd_add_mbox(args):
             name = filename.rstrip(BIN_SUFFIX)
             board_files[name] = part.get_payload(decode=True)
 
-        print 'Found mail "%s" with %d board files' % (msg['Subject'],
-                                                       len(board_files))
+        print('Found mail "%s" with %d board files' % (msg['Subject'],
+                                                       len(board_files)))
 
         # copy the original file for diff
         (temp_fd, temp_pathname) = tempfile.mkstemp()
         shutil.copyfile(board_filename, temp_pathname)
 
         container = BoardContainer.open(board_filename)
-        for name, data in board_files.iteritems():
+        for name, data in board_files.items():
             names = [name]
             container.add_board(data, names)
 
@@ -650,9 +653,9 @@ def cmd_add_mbox(args):
 
         os.remove(temp_pathname)
 
-        print '----------------------------------------------'
-        print applied_msg
-        print '----------------------------------------------'
+        print('----------------------------------------------')
+        print(applied_msg)
+        print('----------------------------------------------')
 
         xclip(applied_msg)
 
