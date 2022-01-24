@@ -346,7 +346,7 @@ class BoardContainer:
         fmt = '<%dsb' % (len(ATH10K_BOARD_SIGNATURE))
         (signature, null) = struct.unpack_from(fmt, buf, offset)
 
-        if signature.decode('utf-8') != ATH10K_BOARD_SIGNATURE or null != 0:
+        if signature != ATH10K_BOARD_SIGNATURE or null != 0:
             print("invalid signature found in %s" % name)
             return 1
 
