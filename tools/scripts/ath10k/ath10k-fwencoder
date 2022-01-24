@@ -636,7 +636,7 @@ def dump(options, args):
         name = "athwlan.codeswap.bin"
         print("--firmware-codeswap=%s \\" % name)
 
-    print()
+    print('')
 
 
 def extract(options, args):
@@ -665,7 +665,7 @@ def extract(options, args):
         write_file(name, c.get_fw_code_swap_image())
         print('%s extracted: %d B' % (name, len(c.get_fw_code_swap_image())))
 
-    print()
+    print('')
 
 
 def modify(options, args):
