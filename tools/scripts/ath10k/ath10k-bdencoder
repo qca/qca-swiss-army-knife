@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright (c) 2015 Qualcomm Atheros, Inc.
 # Copyright (c) 2018, The Linux Foundation. All rights reserved.
@@ -33,7 +33,7 @@ import mailbox
 MAX_BUF_LEN = 2000000
 
 # the signature length also includes null byte and padding
-ATH10K_BOARD_SIGNATURE = "QCA-ATH10K-BOARD"
+ATH10K_BOARD_SIGNATURE = b"QCA-ATH10K-BOARD"
 ATH10K_BOARD_SIGNATURE_LEN = 20
 
 PADDING_MAGIC = 0x6d
@@ -83,7 +83,7 @@ def add_ie(buf, offset, id, value):
 def xclip(msg):
     p = subprocess.Popen(['xclip', '-selection', 'clipboard'],
                          stdin=subprocess.PIPE)
-    p.communicate(msg)
+    p.communicate(msg.encode())
 
 
 # to workaround annoying python feature of returning negative hex values
@@ -106,7 +106,7 @@ class BoardName():
         self = BoardName()
         fmt = '<%ds' % length
         (name, ) = struct.unpack_from(fmt, buf, offset)
-        self.name = name.decode('utf-8')
+        self.name = name.decode()
 
         logging.debug('BoardName.parse_ie(): offset %d length %d self %s' %
                       (offset, length, self))
@@ -311,7 +311,7 @@ class BoardContainer:
                 allnames.append(name)
 
     def _add_signature(self, buf, offset):
-        signature = (ATH10K_BOARD_SIGNATURE + '\0').encode('utf-8')
+        signature = ATH10K_BOARD_SIGNATURE + b'\0'
         length = len(signature)
         pad_len = padding_needed(length)
         length = length + pad_len
@@ -484,11 +484,11 @@ def diff_boardfiles(filename1, filename2, diff):
 
     container1 = BoardContainer().open(filename1)
     (temp1_fd, temp1_pathname) = tempfile.mkstemp()
-    os.write(temp1_fd, container1.get_summary(sort=True))
+    os.write(temp1_fd, container1.get_summary(sort=True).encode())
 
     container2 = BoardContainer().open(filename2)
     (temp2_fd, temp2_pathname) = tempfile.mkstemp()
-    os.write(temp2_fd, container2.get_summary(sort=True))
+    os.write(temp2_fd, container2.get_summary(sort=True).encode())
 
     # this function is used both with --diff and --diffstat
     if diff:
@@ -510,7 +510,7 @@ def diff_boardfiles(filename1, filename2, diff):
             print('Failed to run wdiff: %s' % (e))
             return 1
 
-        result += '%s\n' % (output)
+        result += '%s\n' % (output.decode())
 
     # create simple statistics about changes in board images
 
@@ -578,7 +578,7 @@ def cmd_add_board(args):
     new_filename = args.add_board[1]
     new_names = args.add_board[2:]
 
-    f = open(new_filename, 'r')
+    f = open(new_filename, 'rb')
     new_data = f.read()
     f.close()
 
@@ -629,7 +629,7 @@ def cmd_add_mbox(args):
         shutil.copyfile(board_filename, temp_pathname)
 
         container = BoardContainer.open(board_filename)
-        for name, data in board_files.iteritems():
+        for name, data in board_files.items():
             names = [name]
             container.add_board(data, names)
 
