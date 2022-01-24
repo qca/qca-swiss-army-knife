@@ -245,7 +245,7 @@ class FirmwareContainer:
             struct.pack_into('<B', padding, i, 0x77)
 
         fmt = '<%dsb%ds' % (len(signature), padding_len)
-        struct.pack_into(fmt, self.buf, 0, signature.encode('utf-8'), 0, padding.raw)
+        struct.pack_into(fmt, self.buf, 0, signature, 0, padding.raw)
         self.buf_len = length
 
     def write(self, name):
@@ -267,7 +267,7 @@ class FirmwareContainer:
         (signature, null) = struct.unpack_from(fmt, self.buf, offset)
         offset = offset + self.signature_len + 1
 
-        if signature.decode('utf-8') != self.signature or null != 0:
+        if signature != self.signature or null != 0:
             logger.error("Invalid signature!")
             return False
 
@@ -392,7 +392,7 @@ class Ath10kFirmwareContainer(object):
         for capa in self.features_bitmap:
             # find value from the dict
             try:
-                name = [key for key, value in feature_map.iteritems()
+                name = [key for key, value in feature_map.items()
                         if value == capa][0]
             except IndexError:
                 name = str(capa)
@@ -430,6 +430,7 @@ class Ath10kFirmwareContainer(object):
         return time.strftime('%Y-%m-%d %H:%M:%S',
                              time.gmtime(self.timestamp))
 
+    # fw_version must be a string
     def set_fw_version(self, fw_version):
         self.fw_version = fw_version
         # reserve one byte for null
@@ -437,6 +438,7 @@ class Ath10kFirmwareContainer(object):
             print('Firmware version string too long: %d' % (len(self.fw_version)))
             return 1
 
+    # returns a string
     def get_fw_version(self):
         return self.fw_version
 
@@ -484,7 +486,7 @@ class Ath10kFirmwareContainer(object):
 
         for e in c.elements:
             if e == ATH10K_FW_IE_FW_VERSION:
-                self.fw_version = c.elements[e]
+                self.fw_version = c.elements[e].decode()
             elif e == ATH10K_FW_IE_TIMESTAMP:
                 self.timestamp = c.read_u32(e)
             elif e == ATH10K_FW_IE_OTP_IMAGE:
@@ -507,7 +509,7 @@ class Ath10kFirmwareContainer(object):
 
         if self.fw_version:
             self.container.add_element(ATH10K_FW_IE_FW_VERSION,
-                                       self.fw_version)
+                                       self.fw_version.encode())
         if self.timestamp:
             self.container.add_u32(ATH10K_FW_IE_TIMESTAMP, self.timestamp)
 
@@ -762,7 +764,7 @@ def cmd_crc32(options, args):
 
     filename = args[0]
 
-    f = open(filename, 'r')
+    f = open(filename, 'rb')
     buf = f.read()
     print('%08x' % (_crc32(buf)))
     f.close()
@@ -778,13 +780,23 @@ def cmd_diff(options, args):
 
     c1 = Ath10kFirmwareContainer()
     c1.load(filename1)
-    (temp1_fd, temp1_pathname) = tempfile.mkstemp()
-    os.write(temp1_fd, c1.get_summary())
+    (temp1_fd, temp1_pathname) = tempfile.mkstemp(text=True)
+
+    # for some reason text=True is not working with mkstemp() so open
+    # the file manually
+    f = open(temp1_pathname, 'w')
+    f.write(c1.get_summary())
+    f.close()
 
     c2 = Ath10kFirmwareContainer()
     c2.load(filename2)
-    (temp2_fd, temp2_pathname) = tempfile.mkstemp()
-    os.write(temp2_fd, c2.get_summary())
+    (temp2_fd, temp2_pathname) = tempfile.mkstemp(text=True)
+
+    # for some reason text=True is not working with mkstemp() so open
+    # the file manually
+    f = open(temp2_pathname, 'w')
+    f.write(c2.get_summary())
+    f.close()
 
     # '--less-mode' and '--auto-page' would be nice when running on
     # terminal but don't know how to get the control character
@@ -793,7 +805,7 @@ def cmd_diff(options, args):
 
     # wdiff is braindead and returns 1 in a succesfull case
     try:
-        output = subprocess.check_output(cmd)
+        output = subprocess.check_output(cmd, universal_newlines=True)
     except subprocess.CalledProcessError as e:
         if e.returncode == 1:
             output = e.output
