@@ -308,6 +308,10 @@ def run_checkpatch(args):
 
     # create tag mapping
     for f in driver_files:
+        # global gives an error from Kconfig and Makefile
+        if f.endswith('Kconfig') or f.endswith('Makefile'):
+            continue
+
         cmd = 'global -f %s' % (f)
         output = subprocess.check_output(cmd, shell=True)
         lines = output.splitlines()
