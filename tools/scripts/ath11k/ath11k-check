@@ -212,7 +212,7 @@ def find_tagname(tag_map, filename, lineno):
 
 
 def parse_checkpatch_warning(line):
-    m = re.match(r'(.*):(\d+): .*:(.*): (.*)', line, re.M | re.I)
+    m = re.match(r'(.*?):(\d+): .*?:(.*?): (.*)', line, re.M | re.I)
     result = CPWarning()
     result.path = m.group(1)
     result.lineno = m.group(2)
