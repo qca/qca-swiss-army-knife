@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2015-2017 Qualcomm Atheros, Inc.
 # Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
@@ -34,7 +34,7 @@ import shutil
 MAX_BUF_LEN = 2000000
 
 # the signature length also includes null byte and padding
-ATH11K_BOARD_SIGNATURE = "QCA-ATH11K-BOARD"
+ATH11K_BOARD_SIGNATURE = b"QCA-ATH11K-BOARD"
 ATH11K_BOARD_SIGNATURE_LEN = 20
 
 PADDING_MAGIC = 0x6d
@@ -44,9 +44,13 @@ DEFAULT_JSON_FILE = 'board-%d.json' % DEFAULT_BD_API
 TYPE_LENGTH_SIZE = 8
 
 ATH11K_BD_IE_BOARD = 0
+ATH11K_BD_IE_REGDB = 1
 
 ATH11K_BD_IE_BOARD_NAME = 0
 ATH11K_BD_IE_BOARD_DATA = 1
+
+ATH11K_BD_IE_REGDB_NAME = 0
+ATH11K_BD_IE_REGDB_DATA = 1
 
 
 def padding_needed(len):
@@ -86,12 +90,142 @@ def pretty_array_str(array):
     return '\',\''.join(array)
 
 
+class RegdbName():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        self = RegdbName()
+        fmt = '<%ds' % length
+        (name, ) = struct.unpack_from(fmt, buf, offset)
+        self.name = name.decode()
+
+        logging.debug('RegdbName.parse_ie(): offset %d length %d self %s' %
+                      (offset, length, self))
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        return add_ie(buf, offset, ATH11K_BD_IE_REGDB_NAME, self.name.encode())
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return 'RegdbName(%s)' % self.name
+
+    def __init__(self, name=None):
+        self.name = name
+
+
+class RegdbData():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        self = RegdbData()
+        fmt = '<%ds' % length
+        (self.data, ) = struct.unpack_from(fmt, buf, offset)
+
+        logging.debug('RegdbData.parse_ie(): offset %d length %d self %s' %
+                      (offset, length, self))
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        return add_ie(buf, offset, ATH11K_BD_IE_REGDB_DATA, self.data)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        if self.data is not None:
+            s = '%d B' % (len(self.data))
+        else:
+            s = 'n/a'
+
+        return 'RegdbData(%s)' % (s)
+
+    def __init__(self, data=None):
+        self.data = data
+
+
+class Regdb():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        logging.debug('Regdb.parse_ie(): offset %d length %d' % (offset, length))
+
+        self = Regdb()
+
+        # looping regdb IEs
+        while length > 0:
+            (ie_id, ie_len) = struct.unpack_from('<2i', buf, offset)
+
+            logging.debug('Regdb.parse_ie(): found ie_id %d ie_len %d offset %d length %d' %
+                          (ie_id, ie_len, offset, length))
+
+            if TYPE_LENGTH_SIZE + ie_len > length:
+                raise Exception('Error: ie_len too big (%d > %d)' % (ie_len,
+                                                                     length))
+
+            offset += TYPE_LENGTH_SIZE
+            length -= TYPE_LENGTH_SIZE
+
+            if ie_id == ATH11K_BD_IE_REGDB_NAME:
+                self.names.append(RegdbName.parse_ie(buf, offset, ie_len))
+            elif ie_id == ATH11K_BD_IE_REGDB_DATA:
+                self.data = RegdbData.parse_ie(buf, offset, ie_len)
+
+            offset += ie_len + padding_needed(ie_len)
+            length -= ie_len + padding_needed(ie_len)
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        # store position ie header of this element
+        ie_offset = offset
+
+        offset += TYPE_LENGTH_SIZE
+
+        for name in self.names:
+            offset = name.add_to_buf(buf, offset)
+
+        offset = self.data.add_to_buf(buf, offset)
+
+        # write ie header as now we know the full length
+        ie_len = offset - ie_offset - TYPE_LENGTH_SIZE
+        struct.pack_into('<2i', buf, ie_offset, ATH11K_BD_IE_REGDB, ie_len)
+
+        return offset
+
+    def get_names_as_str(self):
+        names = []
+        for regdbname in self.names:
+            names.append(regdbname.name)
+
+        return names
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        names = []
+        for regdbname in self.names:
+            names.append(str(regdbname))
+
+        return 'Regdb(%s, %s)' % (','.join(names), self.data)
+
+    def __init__(self):
+        self.data = None
+        self.names = []
+
+
 class BoardName():
     @staticmethod
     def parse_ie(buf, offset, length):
         self = BoardName()
         fmt = '<%ds' % length
-        (self.name, ) = struct.unpack_from(fmt, buf, offset)
+        (name, ) = struct.unpack_from(fmt, buf, offset)
+        self.name = name.decode()
 
         logging.debug('BoardName.parse_ie(): offset %d length %d self %s' %
                       (offset, length, self))
@@ -99,7 +233,7 @@ class BoardName():
         return self
 
     def add_to_buf(self, buf, offset):
-        return add_ie(buf, offset, ATH11K_BD_IE_BOARD_NAME, str(self.name))
+        return add_ie(buf, offset, ATH11K_BD_IE_BOARD_NAME, self.name.encode())
 
     def __eq__(self, other):
         return self.name == other.name
@@ -227,25 +361,46 @@ class BoardContainer:
 
         self.boards.append(board)
 
+    def add_regdb(self, data, names):
+        regdbnames = []
+        for name in names:
+            regdbnames.append(RegdbName(name))
+
+        regdb = Regdb()
+        regdb.data = RegdbData(data)
+        regdb.names = regdbnames
+
+        self.regdbs.append(regdb)
+
     @staticmethod
     def open_json(filename):
         self = BoardContainer()
 
         if not os.path.exists(filename):
-            print 'mapping file %s not found' % (filename)
+            print('mapping file %s not found' % (filename))
             return
 
         f = open(filename, 'r')
         mapping = json.loads(f.read())
         f.close()
 
-        for b in mapping:
-            board_filename = b['data']
-            f = open(board_filename, 'rb')
-            data = f.read()
-            f.close()
+        if 'board' in mapping[0]:
+            for b in mapping[0]['board']:
+                board_filename = b['data']
+                f = open(board_filename, 'rb')
+                data = f.read()
+                f.close()
 
-            self.add_board(data, b['names'])
+                self.add_board(data, b['names'])
+
+        if 'regdb' in mapping[0]:
+            for b in mapping[0]['regdb']:
+                regdb_filename = b['data']
+                f = open(regdb_filename, 'rb')
+                data = f.read()
+                f.close()
+
+                self.add_regdb(data, b['names'])
 
         return self
 
@@ -258,13 +413,13 @@ class BoardContainer:
                     # TODO: Find a better way to report problems,
                     # maybe return a list of strings? Or use an
                     # exception?
-                    print 'Warning: duplicate board name: %s' % (name.name)
+                    print('Warning: duplicate board name: %s' % (name.name))
                     return
 
                 allnames.append(name)
 
     def _add_signature(self, buf, offset):
-        signature = ATH11K_BOARD_SIGNATURE + '\0'
+        signature = ATH11K_BOARD_SIGNATURE + b'\0'
         length = len(signature)
         pad_len = padding_needed(length)
         length = length + pad_len
@@ -300,7 +455,7 @@ class BoardContainer:
         (signature, null) = struct.unpack_from(fmt, buf, offset)
 
         if signature != ATH11K_BOARD_SIGNATURE or null != 0:
-            print "invalid signature found in %s" % name
+            print("invalid signature found in %s" % name)
             return 1
 
         offset += ATH11K_BOARD_SIGNATURE_LEN
@@ -314,13 +469,15 @@ class BoardContainer:
             offset += TYPE_LENGTH_SIZE
 
             if offset + ie_len > buf_len:
-                print 'Error: Buffer too short (%d + %d > %d)' % (offset,
+                print('Error: Buffer too short (%d + %d > %d)' % (offset,
                                                                   ie_len,
-                                                                  buf_len)
+                                                                  buf_len))
                 return 1
 
             if ie_id == ATH11K_BD_IE_BOARD:
                 self.boards.append(Board.parse_ie(buf, offset, ie_len))
+            elif ie_id == ATH11K_BD_IE_REGDB:
+                self.regdbs.append(Regdb.parse_ie(buf, offset, ie_len))
 
             offset += ie_len + padding_needed(ie_len)
 
@@ -337,7 +494,7 @@ class BoardContainer:
 
         self.validate()
 
-        print "board binary file '%s' is created" % name
+        print("board binary file '%s' is created" % name)
 
     def get_bin(self):
         buf = ctypes.create_string_buffer(MAX_BUF_LEN)
@@ -347,6 +504,9 @@ class BoardContainer:
 
         for board in self.boards:
             offset = board.add_to_buf(buf, offset)
+
+        for regdb in self.regdbs:
+            offset = regdb.add_to_buf(buf, offset)
 
         # returns buffer and it's length
         return buf, offset
@@ -378,16 +538,40 @@ class BoardContainer:
             s += 'BoardMD5%s: %s\n' % (index_s, hashlib.md5(board.data.data).hexdigest())
             index += 1
 
+        regdbs = self.regdbs
+
+        if sort:
+            regdbs = sorted(regdbs, key=lambda regdb: regdb.get_names_as_str())
+
+        index = 0
+        for regdb in regdbs:
+            if not sort:
+                index_s = '[%d]' % (index)
+            else:
+                index_s = ''
+
+            s += 'RegdbNames%s: \'%s\'\n' % (index_s, pretty_array_str(regdb.get_names_as_str()))
+            s += 'RegdbLength%s: %d\n' % (index_s, len(regdb.data.data))
+            s += 'RegdbCRC32%s: %08x\n' % (index_s, _crc32(regdb.data.data))
+            s += 'RegdbMD5%s: %s\n' % (index_s, hashlib.md5(regdb.data.data).hexdigest())
+            index += 1
+
         return s
 
     def __init__(self):
         self.boards = []
+        self.regdbs = []
 
 
 def cmd_extract(args):
     cont = BoardContainer().open(args.extract)
 
     mapping = []
+    d = {}
+    mapping.append(d)
+
+    mapping_board = []
+    d['board'] = mapping_board
 
     for board in cont.boards:
         filename = board.names[0].name + '.bin'
@@ -395,20 +579,37 @@ def cmd_extract(args):
         b = {}
         b['names'] = board.get_names_as_str()
         b['data'] = filename
-        mapping.append(b)
+        mapping_board.append(b)
 
-        f = open(filename, 'w')
+        f = open(filename, 'wb')
         f.write(board.data.data)
         f.close()
 
-        print "%s created size: %d" % (filename, len(board.data.data))
+        print("%s created size: %d" % (filename, len(board.data.data)))
+
+    mapping_regdb = []
+    d['regdb'] = mapping_regdb
+
+    for regdb in cont.regdbs:
+        filename = regdb.names[0].name + '.regdb'
+
+        b = {}
+        b['names'] = regdb.get_names_as_str()
+        b['data'] = filename
+        mapping_regdb.append(b)
+
+        f = open(filename, 'wb')
+        f.write(regdb.data.data)
+        f.close()
+
+        print("%s created size: %d" % (filename, len(regdb.data.data)))
 
     filename = DEFAULT_JSON_FILE
     f = open(filename, 'w')
     f.write(json.dumps(mapping, indent=4))
     f.close()
 
-    print "%s created" % (filename)
+    print("%s created" % (filename))
 
 
 def cmd_info(args):
@@ -416,7 +617,7 @@ def cmd_info(args):
 
     cont = BoardContainer().open(filename)
 
-    print cont.get_summary()
+    print(cont.get_summary())
 
 
 def cmd_diff(args):
@@ -427,7 +628,7 @@ def cmd_diff(args):
         filename1 = args.diffstat[0]
         filename2 = args.diffstat[1]
 
-    print diff_boardfiles(filename1, filename2, args.diff)
+    print(diff_boardfiles(filename1, filename2, args.diff))
 
 
 def diff_boardfiles(filename1, filename2, diff):
@@ -435,11 +636,11 @@ def diff_boardfiles(filename1, filename2, diff):
 
     container1 = BoardContainer().open(filename1)
     (temp1_fd, temp1_pathname) = tempfile.mkstemp()
-    os.write(temp1_fd, container1.get_summary(sort=True))
+    os.write(temp1_fd, container1.get_summary(sort=True).encode())
 
     container2 = BoardContainer().open(filename2)
     (temp2_fd, temp2_pathname) = tempfile.mkstemp()
-    os.write(temp2_fd, container2.get_summary(sort=True))
+    os.write(temp2_fd, container2.get_summary(sort=True).encode())
 
     # this function is used both with --diff and --diffstat
     if diff:
@@ -455,16 +656,15 @@ def diff_boardfiles(filename1, filename2, diff):
             if e.returncode == 1:
                 output = e.output
             else:
-                print 'Failed to run wdiff: %d\n%s' % (e.returncode, e.output)
+                print('Failed to run wdiff: %d\n%s' % (e.returncode, e.output))
                 return 1
         except OSError as e:
-            print 'Failed to run wdiff: %s' % (e)
+            print('Failed to run wdiff: %s' % (e))
             return 1
 
-        result += '%s\n' % (output)
+        result += '%s\n' % (output.decode())
 
     # create simple statistics about changes in board images
-
     new_boards = {}
     deleted_boards = {}
     changed_boards = {}
@@ -493,14 +693,52 @@ def diff_boardfiles(filename1, filename2, diff):
         # board image has changed
         changed_boards[names] = board2
 
-    result += 'New:\n%s\n\n' % ('\n'.join(new_boards.keys()))
-    result += 'Changed:\n%s\n\n' % ('\n'.join(changed_boards.keys()))
-    result += 'Deleted:\n%s\n' % ('\n'.join(deleted_boards.keys()))
+    result += 'New board:\n%s\n\n' % ('\n'.join(list(new_boards.keys())))
+    result += 'Changed board:\n%s\n\n' % ('\n'.join(list(changed_boards.keys())))
+    result += 'Deleted board:\n%s\n' % ('\n'.join(list(deleted_boards.keys())))
 
-    result += '%d board image(s) added, %d changed, %d deleted, %d in total' % (len(new_boards),
-                                                                                len(changed_boards),
-                                                                                len(deleted_boards),
-                                                                                len(container2.boards))
+    result += '%d board image(s) added, %d changed, %d deleted, %d in total\n\n' % (len(new_boards),
+                                                                                    len(changed_boards),
+                                                                                    len(deleted_boards),
+                                                                                    len(container2.boards))
+
+    # create simple statistics about changes in regdb images
+    new_regdbs = {}
+    deleted_regdbs = {}
+    changed_regdbs = {}
+
+    for regdb in container2.regdbs:
+        # convert the list to a string
+        s = pretty_array_str(regdb.get_names_as_str())
+        new_regdbs[s] = regdb
+
+    for regdb in container1.regdbs:
+        # convert the list to a string
+        names = pretty_array_str(regdb.get_names_as_str())
+
+        if names not in new_regdbs:
+            # regdb image has been deleted
+            deleted_regdbs[names] = regdb
+            continue
+
+        regdb2 = new_regdbs[names]
+        del new_regdbs[names]
+
+        if regdb.data.data == regdb2.data.data:
+            # regdb image hasn't changed
+            continue
+
+        # regdb image has changed
+        changed_regdbs[names] = regdb2
+
+    result += 'New regdb:\n%s\n\n' % ('\n'.join(list(new_regdbs.keys())))
+    result += 'Changed regdb:\n%s\n\n' % ('\n'.join(list(changed_regdbs.keys())))
+    result += 'Deleted regdb:\n%s\n' % ('\n'.join(list(deleted_regdbs.keys())))
+
+    result += '%d regdb image(s) added, %d changed, %d deleted, %d in total' % (len(new_regdbs),
+                                                                                len(changed_regdbs),
+                                                                                len(deleted_regdbs),
+                                                                                len(container2.regdbs))
 
     os.close(temp1_fd)
     os.close(temp2_fd)
@@ -522,14 +760,14 @@ def cmd_create(args):
 
 def cmd_add_board(args):
     if len(args.add_board) < 3:
-        print 'error: --add-board requires 3 or more arguments, only %d given' % (len(args.add_board))
+        print('error: --add-board requires 3 or more arguments, only %d given' % (len(args.add_board)))
         sys.exit(1)
 
     board_filename = args.add_board[0]
     new_filename = args.add_board[1]
     new_names = args.add_board[2:]
 
-    f = open(new_filename, 'r')
+    f = open(new_filename, 'rb')
     new_data = f.read()
     f.close()
 
@@ -541,7 +779,7 @@ def cmd_add_board(args):
     container.add_board(new_data, new_names)
     container.write(board_filename)
 
-    print diff_boardfiles(temp_pathname, board_filename, False)
+    print(diff_boardfiles(temp_pathname, board_filename, False))
 
     os.remove(temp_pathname)
 
@@ -559,15 +797,24 @@ For creating board files you need a mapping file in JSON which
 contains the names and filenames for the actual binary:
 
 [
+{
+"board": [
         {"names": ["AAA1", "AAAA2"], "data": "A.bin"},
         {"names": ["B"], "data": "B.bin"},
         {"names": ["C"], "data": "C.bin"},
+        ],
+"regdb": [
+        {"names": ["A"], "data": "A.regdb"}
+        ]
+}
 ]
 
 In this example the board-N.bin will contain three board files which
 are read from files named A.bin (using names AAA1 and AAAA2 in the
-board-N.bin file), B.bin (using name B) and C.bin (using name C). You
-can use --extract switch to see examples from real board-N.bin files.
+board-N.bin file), B.bin (using name B) and C.bin (using name C). The file also contains one regdb (regulatory database) from file A.regdb.
+
+You can use --extract switch to see examples from real board-N.bin
+files.
 '''
 
     parser = argparse.ArgumentParser(description=description,
