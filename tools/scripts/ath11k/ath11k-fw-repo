@@ -401,6 +401,10 @@ def scan_hw(path):
         if not os.path.isdir(hw_ver_path):
             continue
 
+        # skip symbolic links, for example WCN6855 hw2.1
+        if os.path.islink(hw_ver_path):
+            continue
+
         logger.debug('Found hw version: %s' % (hw_ver))
 
         hw = Hardware(path, hw_ver)
@@ -514,9 +518,9 @@ def whence_update(linux_firmware, filepaths, version):
     if version is not None:
         replace += r'Version: %s\n' % (version)
 
-    # license needs to be last
+    # license (or notice.txt to be exact) needs to be last
     if license_relpath is not None:
-        replace += r'Licence: %s\n' % (license_relpath)
+        replace += r'File: %s\n' % (license_relpath)
 
     (buf, sub_count) = re.subn(pattern, replace, buf,
                                flags=re.MULTILINE | re.DOTALL)
@@ -559,9 +563,9 @@ def whence_add(linux_firmware, filepaths, version=None):
     if version is not None:
         replace += r'Version: %s\n' % (version)
 
-    # license needs to be last
+    # license (or notice.txt to be exact) needs to be last
     if license_relpath is not None:
-        replace += r'Licence: %s\n' % (license_relpath)
+        replace += r'File: %s\n' % (license_relpath)
 
     # empty line before the 'Licence: Redistributable.' line
     replace += r'\n'
@@ -921,6 +925,11 @@ def cmd_install(args):
 
             for filename in to_remove:
                 filepath = os.path.join(ath11kdir, hw.get_path(), filename)
+
+                if os.path.basename(filepath) == 'regdb.bin':
+                    logger.debug('ignore %s so that it is not removed from target' % (filepath))
+                    continue
+
                 logger.info('\trm %s' % (filepath))
 
                 # even git_rm() removes the file need to remove the
