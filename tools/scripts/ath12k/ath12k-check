@@ -87,9 +87,16 @@ CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
                    '--max-line-length=90', '--show-types']
 
 checkpatch_filter = [
-    ('ath12k_read_simulate_fw_crash', 'LONG_LINE'),
     ('qmi_wlanfw_respond_mem_req_msg_v01', 'LONG_LINE'),
     ('qmi_wlanfw_host_cap_req_msg_v01', 'LONG_LINE'),
+    ('qmi_wlfw_qdss_trace_config_download_req_msg_v01_ei', 'LONG_LINE'),
+    ('qmi_wlanfw_qdss_trace_config_download_resp_msg_v01_ei', 'LONG_LINE'),
+
+    # workaround for long lines in
+    # qmi_wlfw_qdss_trace_config_download_req_msg_v01_ei, for some
+    # reason gtags claim they are part of
+    # PLATFORM_CAP_PCIE_GLOBAL_RESET
+    ('PLATFORM_CAP_PCIE_GLOBAL_RESET', 'LONG_LINE'),
 ]
 
 sparse_filter = [r'warning: dubious: x & !y']
