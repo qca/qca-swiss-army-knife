@@ -41,47 +41,21 @@ FILTER_REGEXP = r'/ath'
 
 IGNORE_FILES = []
 
-CHECKPATCH_IGNORE = ['MSLEEP',
-                     'USLEEP_RANGE',
-                     'PRINTK_WITHOUT_KERN_LEVEL',
+CHECKPATCH_IGNORE = [
+    # TODO: look like valid warnings, investigate
+    'COMPLEX_MACRO',
+    'MACRO_WITH_FLOW_CONTROL',
+    'MACRO_ARG_REUSE',
 
-                     # ath10k does not follow networking comment style
-                     'NETWORKING_BLOCK_COMMENT_STYLE',
+    # some find extra parentheses helpful so ignore the warnings
+    'UNNECESSARY_PARENTHESES',
 
-                     'LINUX_VERSION_CODE',
-                     'COMPLEX_MACRO',
-                     'PREFER_DEV_LEVEL',
-                     'PREFER_PR_LEVEL',
-                     'COMPARISON_TO_NULL',
-                     'BIT_MACRO',
-                     'CONSTANT_COMPARISON',
-                     'MACRO_WITH_FLOW_CONTROL',
+    # Not sure if these is really a useful warning, disable for now.
+    'MACRO_ARG_PRECEDENCE',
 
-                     # Spams hundreds of lines useless 'struct should
-                     # normally be const' warnings, maybe a bug in
-                     # checkpatch?
-                     'CONST_STRUCT',
-
-                     # TODO: look like valid warnings, investigate
-                     'MACRO_ARG_REUSE',
-                     'OPEN_ENDED_LINE',
-                     'FUNCTION_ARGUMENTS',
-                     'CONFIG_DESCRIPTION',
-                     'ASSIGNMENT_CONTINUATIONS',
-                     'UNNECESSARY_PARENTHESES',
-
-                     # Not sure if these really useful warnings,
-                     # disable for now.
-                     'MACRO_ARG_PRECEDENCE',
-
-                     'BOOL_MEMBER',
-
-                     # TODO: ath12k uses volatile for now, fix it
-                     'VOLATILE',
-
-                     # TODO: document all DT usage in ath12k
-                     'UNDOCUMENTED_DT_STRING',
-                     ]
+    # TODO: ath12k uses volatile for now, fix it
+    'VOLATILE',
+]
 
 CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
                    '--max-line-length=90', '--show-types']
@@ -95,8 +69,11 @@ checkpatch_filter = [
     # workaround for long lines in
     # qmi_wlfw_qdss_trace_config_download_req_msg_v01_ei, for some
     # reason gtags claim they are part of
-    # PLATFORM_CAP_PCIE_GLOBAL_RESET
-    ('PLATFORM_CAP_PCIE_GLOBAL_RESET', 'LONG_LINE'),
+    # ATH11K_QMI_MAX_CHUNK_SIZE
+    ('ATH11K_QMI_MAX_CHUNK_SIZE', 'LONG_LINE'),
+
+    # trace.h has warnings which don't make sense to fix
+    ('TRACE_SYSTEM', 'OPEN_ENDED_LINE'),
 ]
 
 sparse_filter = [r'warning: dubious: x & !y']
