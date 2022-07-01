@@ -42,19 +42,8 @@ FILTER_REGEXP = r'/ath'
 IGNORE_FILES = []
 
 CHECKPATCH_IGNORE = [
-    # TODO: look like valid warnings, investigate
-    'COMPLEX_MACRO',
-    'MACRO_WITH_FLOW_CONTROL',
-    'MACRO_ARG_REUSE',
-
     # some find extra parentheses helpful so ignore the warnings
     'UNNECESSARY_PARENTHESES',
-
-    # Not sure if these is really a useful warning, disable for now.
-    'MACRO_ARG_PRECEDENCE',
-
-    # TODO: ath12k uses volatile for now, fix it
-    'VOLATILE',
 ]
 
 CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
@@ -69,11 +58,21 @@ checkpatch_filter = [
     # workaround for long lines in
     # qmi_wlfw_qdss_trace_config_download_req_msg_v01_ei, for some
     # reason gtags claim they are part of
-    # ATH11K_QMI_MAX_CHUNK_SIZE
-    ('ATH11K_QMI_MAX_CHUNK_SIZE', 'LONG_LINE'),
+    # ATH12K_QMI_MAX_CHUNK_SIZE
+    ('ATH12K_QMI_MAX_CHUNK_SIZE', 'LONG_LINE'),
 
     # trace.h has warnings which don't make sense to fix
     ('TRACE_SYSTEM', 'OPEN_ENDED_LINE'),
+
+    # couldn't figure out how to make checkpatch happy with these macros
+    ('SVC', 'COMPLEX_MACRO'),
+    ('C2S', 'COMPLEX_MACRO'),
+    ('C2S', 'MACRO_WITH_FLOW_CONTROL'),
+
+    # this use of volatile should be ok
+    ('ath12k_hal_srng_access_begin', 'VOLATILE'),
+    ('ath12k_hal_srng_access_end', 'VOLATILE'),
+    ('hal_srng', 'VOLATILE'),
 ]
 
 sparse_filter = [r'warning: dubious: x & !y']
