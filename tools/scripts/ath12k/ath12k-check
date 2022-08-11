@@ -75,7 +75,7 @@ checkpatch_filter = [
     ('hal_srng', 'VOLATILE'),
 ]
 
-sparse_filter = [r'warning: dubious: x & !y']
+sparse_filter = []
 
 # global variables
 
