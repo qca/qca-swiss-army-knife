@@ -31,7 +31,7 @@ import logging
 import sys
 import shutil
 
-MAX_BUF_LEN = 2000000
+MAX_BUF_LEN = 10000000
 
 # the signature length also includes null byte and padding
 ATH11K_BOARD_SIGNATURE = b"QCA-ATH11K-BOARD"
