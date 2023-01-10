@@ -77,7 +77,7 @@ def dbg(msg):
     if DEBUG == 0:
         return
 
-    print msg
+    print(msg)
 
 
 def hexdump(buf, prefix=None):
@@ -419,8 +419,8 @@ def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
 
 def ath10k_htt_tx_handler(pevent, trace_seq, event):
     global msdu_len_tbl
-    msdu_id = long(event['msdu_id'])
-    msdu_len = long(event['msdu_len'])
+    msdu_id = int(event['msdu_id'])
+    msdu_len = int(event['msdu_len'])
 
     trace_seq.puts('msdu_id %d msdu_len %d\n' % (msdu_id, msdu_len))
 
@@ -433,7 +433,7 @@ def ath10k_htt_tx_handler(pevent, trace_seq, event):
 
 def ath10k_txrx_tx_unref_handler(pevent, trace_seq, event):
     global msdu_len_tbl
-    msdu_id = long(event['msdu_id'])
+    msdu_id = int(event['msdu_id'])
 
     trace_seq.puts('msdu_id %d\n' % (msdu_id))
 
