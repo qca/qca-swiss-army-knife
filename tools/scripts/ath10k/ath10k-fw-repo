@@ -533,13 +533,13 @@ def cmd_list_lib_dir(args):
         for filename in sorted(filenames):
             path = os.path.join(dirpath, filename)
 
-            match = re.match('firmware.*\.bin', filename)
+            match = re.match(r'firmware.*\.bin', filename)
             if match is not None:
                 # this is a firmware file
                 s = '%s\t%s' % (filename, get_firmware_version(path))
                 found.append(s)
 
-            match = re.match('board.*\.bin', filename)
+            match = re.match(r'board.*\.bin', filename)
             if match is not None:
                 # this is a board file
                 s = '%s\t%s' % (filename, get_board_crc32(path))
