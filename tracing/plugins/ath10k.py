@@ -132,7 +132,7 @@ wmi_cmd_handlers = [
 
 
 def ath10k_wmi_cmd_handler(pevent, trace_seq, event):
-    buf_len = long(event['buf_len'])
+    buf_len = int(event['buf_len'])
     buf = event['buf'].data
 
     # parse wmi header
@@ -150,7 +150,7 @@ def ath10k_wmi_cmd_handler(pevent, trace_seq, event):
 
 
 def ath10k_wmi_event_handler(pevent, trace_seq, event):
-    buf_len = long(event['buf_len'])
+    buf_len = int(event['buf_len'])
     buf = event['buf'].data
 
     hdr = struct.unpack("<HH", buf[0:4])
@@ -373,9 +373,12 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
     mgmt_rssi = hdr[6]
     data_rssi = hdr[7]
     rssi_comb_ht = hdr[8]
-    reserved = hdr[9]
+    #reserved = hdr[9]
     nf_dbm = hdr[10]
     rssi_dbm = hdr[11]
+
+    # FIXME: no idea what rssis is supposed to be
+    rssis = 0
 
     trace_seq.puts("\n\t\t ldpc_count %d \n\t\t txbf_count %d \n\t\t rssi_chain0 0x%02x 0x%02x 0x%02x 0x%02x \n\t\t rssi_chain1 0x%02x 0x%02x 0x%02x 0x%02x \n\t\t rssi_chain2 0x%02x 0x%02x 0x%02x 0x%02x \n\t\t rssi_chain3 0x%02x 0x%02x 0x%02x 0x%02x \n\t\t mgmt_rssi %d \n\t\t data_rssi %d \n\t\t rssi_comb_ht %d \n\t\t nf_dbm %d \n\t\t rssi_dbm %d" % (ldpc_count, txbf_count, (rssi_chain0 >> 24) & 0xff, (rssi_chain0 >> 16) & 0xff, (rssi_chain0 >> 8) & 0xff, (rssi_chain0 >> 0) & 0xff, (rssi_chain1 >> 24) & 0xff, (rssi_chain1 >> 16) & 0xff, (rssi_chain1 >> 8) & 0xff, (rssi_chain1 >> 0) & 0xff, (rssi_chain2 >> 24) & 0xff, (rssi_chain2 >> 16) & 0xff, (rssi_chain2 >> 8) & 0xff, (rssi_chain2 >> 0) & 0xff, (rssi_chain3 >> 24) & 0xff, (rssi_chain3 >> 16) & 0xff, (rssi_chain3 >> 8) & 0xff, (rssi_chain3 >> 0) & 0xff, (rssis >> 16) & 0xff, (rssis >> 0) & 0xff, (rssis >> 8) & 0xff, mgmt_rssi, data_rssi, rssi_comb_ht, nf_dbm, rssi_dbm))
 
@@ -1002,7 +1005,7 @@ def parse_one_htt_stats_conf_msg(pevent, trace_seq, buf, tlv, cookie):
 
     if tlv_status != HTT_DBG_STATS_STATUS_PRESENT and \
         tlv_status != HTT_DBG_STATS_STATUS_PARTIAL:
-	return True
+        return True
 
     trace_seq.puts("\t\tcookie 0x%016x tlv_type %d tlv_status %d tlv_length %d\n"
                    % (cookie, tlv_type, tlv_status, tlv_length))
@@ -1062,20 +1065,20 @@ def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
         buf = buf[tlv_length:]
         l = 4
         hdr = struct.unpack("<I", buf[0:l])
-	buf = buf[l:]
+        buf = buf[l:]
 
         tlv = hdr[0]
 
-	tlv_length = (tlv & 0xffff0000) >> 16
+        tlv_length = (tlv & 0xffff0000) >> 16
 
         if tlv_length == 0:
-	    continue
+            continue
 
         if parse_one_htt_stats_conf_msg(pevent, trace_seq, buf, tlv, cookie) == False:
             break
 
 def ath10k_htt_stats_handler(pevent, trace_seq, event):
-    buf_len = long(event['buf_len'])
+    buf_len = int(event['buf_len'])
     buf = event['buf'].data
 
     l = 4
