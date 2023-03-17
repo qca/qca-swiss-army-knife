@@ -596,7 +596,7 @@ def cmd_add_board(args):
 
 
 def git_get_head_id():
-    return subprocess.check_output(['git', 'log', '--format=format:%H', '-1'])
+    return subprocess.check_output(['git', 'log', '--format=format:%H', '-1'], text=True)
 
 
 def cmd_add_mbox(args):
