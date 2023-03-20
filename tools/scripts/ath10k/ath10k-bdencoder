@@ -618,7 +618,7 @@ def cmd_add_mbox(args):
             if not filename.endswith(BIN_SUFFIX):
                 continue
 
-            name = filename.rstrip(BIN_SUFFIX)
+            name = filename[:-len(BIN_SUFFIX)]
             board_files[name] = part.get_payload(decode=True)
 
         print('Found mail "%s" with %d board files' % (msg['Subject'],
