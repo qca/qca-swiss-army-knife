@@ -31,7 +31,7 @@ import string
 import hashlib
 import distutils.spawn
 
-CHECKPATCH_COMMIT = '852d095d16a6298834839f441593f59d58a31978'
+CHECKPATCH_COMMIT = '362173572a4018e9c8e39c616823189c41d39d41'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
