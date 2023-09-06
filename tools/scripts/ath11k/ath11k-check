@@ -32,6 +32,7 @@ import hashlib
 import distutils.spawn
 
 CHECKPATCH_COMMIT = '362173572a4018e9c8e39c616823189c41d39d41'
+CHECKPATCH_MD5SUM = '47ef327d772c156e53a36597723fc781'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
@@ -238,6 +239,14 @@ def is_filtered(cpwarning):
     return False
 
 
+def get_checkpatch_md5sum():
+    path = distutils.spawn.find_executable('checkpatch.pl', os.environ['PATH'])
+    f = open(path, 'rb')
+    md5sum = hashlib.md5(f.read()).hexdigest()
+    f.close()
+
+    return md5sum
+
 def get_checkpatch_cmdline():
     return ['checkpatch.pl'] + CHECKPATCH_OPTS + \
         ['--ignore', ",".join(CHECKPATCH_IGNORE)]
@@ -277,6 +286,11 @@ def run_checkpatch_cmd(args, q, tag_map):
 
 
 def run_checkpatch(args):
+    md5sum = get_checkpatch_md5sum()
+    if md5sum != CHECKPATCH_MD5SUM:
+        print('WARNING: checkpatch.pl md5sum %s does not match with %s' %
+              (md5sum, CHECKPATCH_MD5SUM))
+
     # get all files which need to be checked
     cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
     output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
@@ -371,11 +385,7 @@ def show_version(args):
     try:
         checkpatch_version = run(['checkpatch.pl', '--version'],
                                  universal_newlines=True).splitlines()[1]
-        path = distutils.spawn.find_executable(
-            'checkpatch.pl', os.environ['PATH'])
-        f = open(path, 'rb')
-        checkpatch_md5sum = hashlib.md5(f.read()).hexdigest()
-        f.close()
+        checkpatch_md5sum = get_checkpatch_md5sum()
     except:
         pass
 
