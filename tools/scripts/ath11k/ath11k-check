@@ -397,6 +397,7 @@ def show_version(args):
 
     print('ath11k-check (md5sum %s)' % (ath11kcheck_md5sum))
     print()
+    print('python:\t\t%s' % (sys.version))
     print('gcc:\t\t%s' % (gcc_version))
     print('sparse:\t\t%s' % (sparse_version))
     print('checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum))
