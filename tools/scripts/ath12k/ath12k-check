@@ -427,6 +427,10 @@ Alternatively if you want manually run checkpatch with the same
 settings as ath12k-check uses here's the command line:
 
 $CHECKPATCH_CMDLINE
+
+Latest version of sparse is needed, install it manually from the git repository:
+
+https://git.kernel.org/pub/scm/devel/sparse/sparse.git/
 '''
 
     checkpatch_cmdline = '%s foo.patch' % ' '.join(get_checkpatch_cmdline())
