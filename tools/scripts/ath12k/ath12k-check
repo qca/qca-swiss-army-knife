@@ -381,6 +381,7 @@ def show_version(args):
 
     print('ath12k-check (md5sum %s)' % (ath12kcheck_md5sum))
     print()
+    print('python:\t\t%s' % (sys.version))
     print('gcc:\t\t%s' % (gcc_version))
     print('sparse:\t\t%s' % (sparse_version))
     print('checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum))
