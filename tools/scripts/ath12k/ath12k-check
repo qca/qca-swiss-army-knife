@@ -29,7 +29,7 @@ import queue
 import threading
 import string
 import hashlib
-import distutils.spawn
+import shutil
 
 CHECKPATCH_COMMIT = '362173572a4018e9c8e39c616823189c41d39d41'
 CHECKPATCH_MD5SUM = '47ef327d772c156e53a36597723fc781'
@@ -224,7 +224,7 @@ def is_filtered(cpwarning):
 
 
 def get_checkpatch_md5sum():
-    path = distutils.spawn.find_executable('checkpatch.pl', os.environ['PATH'])
+    path = shutil.which('checkpatch.pl')
     f = open(path, 'rb')
     md5sum = hashlib.md5(f.read()).hexdigest()
     f.close()
