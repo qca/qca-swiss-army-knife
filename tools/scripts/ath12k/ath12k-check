@@ -40,6 +40,9 @@ DRIVER_DIR = 'drivers/net/wireless/ath/ath12k/'
 
 FILTER_REGEXP = r'/ath'
 
+# Example: CONFIG_CC_VERSION_TEXT="x86_64-linux-gcc (GCC) 13.2.0"
+CONFIG_CC_REGEXP = r'^CONFIG_CC_VERSION_TEXT="(.*)"$'
+
 IGNORE_FILES = []
 
 CHECKPATCH_IGNORE = [
@@ -342,7 +345,8 @@ def run_checkpatch(args):
 
 
 def show_version(args):
-    gcc_version = 'not found'
+    host_gcc_version = 'not found'
+    config_cc_version = 'not found'
     sparse_version = 'not found'
     checkpatch_version = 'not found'
     checkpatch_md5sum = 'N/A'
@@ -355,8 +359,17 @@ def show_version(args):
     f.close()
 
     try:
-        gcc_version = run(['gcc', '--version'],
-                          universal_newlines=True).splitlines()[0]
+        host_gcc_version = run(['gcc', '--version'],
+                               universal_newlines=True).splitlines()[0]
+    except:
+        pass
+
+    try:
+        f = open('.config')
+        m = re.search(CONFIG_CC_REGEXP, f.read(), re.MULTILINE)
+        if m is not None:
+            config_cc_version = m.group(1)
+        f.close()
     except:
         pass
 
@@ -382,7 +395,8 @@ def show_version(args):
     print('ath12k-check (md5sum %s)' % (ath12kcheck_md5sum))
     print()
     print('python:\t\t%s' % (sys.version))
-    print('gcc:\t\t%s' % (gcc_version))
+    print('host gcc:\t%s' % (host_gcc_version))
+    print('config cc:\t%s' % (config_cc_version))
     print('sparse:\t\t%s' % (sparse_version))
     print('checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum))
     print('gtags:\t\t%s' % (gtags_version))
