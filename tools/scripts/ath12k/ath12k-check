@@ -34,7 +34,7 @@ import shutil
 CHECKPATCH_COMMIT = '362173572a4018e9c8e39c616823189c41d39d41'
 CHECKPATCH_MD5SUM = '47ef327d772c156e53a36597723fc781'
 
-GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
+GIT_URL = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
 DRIVER_DIR = 'drivers/net/wireless/ath/ath12k/'
 
@@ -416,7 +416,7 @@ unnecessary warnings away, the goal is to have empty output from the
 script.
 
 Run this from the main kernel source directory which is preconfigured
-with ath12k enabled. gcc recompilation is forced every time,
+with ath12k enabled. gcc recompilation of ath12k is forced every time,
 irrespective if there are any changes in source or not. So this can be
 run multiple times and every time the same warnings will appear.
 
@@ -431,20 +431,58 @@ Requirements (all available in $PATH):
 
     s = '''Installation:
 
-As checkpatch is evolving this script always matches a certain version
-of checkpatch. Download the checkpatch version from the URL below and
-install it somewhere in your $$PATH:
+It is assumed below that ~/bin is part of user's $$PATH. If it's not,
+replace ~/bin with a suitable directory.
 
-$CHECKPATCH_URL
+To install or update to the latest version of ath12k-check:
 
-Alternatively if you want manually run checkpatch with the same
-settings as ath12k-check uses here's the command line:
+wget https://github.com/qca/qca-swiss-army-knife/raw/master/tools/scripts/ath12k/ath12k-check
+cp ath12k-check ~/bin/
+
+It's strongly recommend to use the latest GCC version from crosstool:
+
+https://mirrors.edge.kernel.org/pub/tools/crosstool/
+
+Unpack the compiler for example to /opt/cross/ and in the Linux kernel
+sources create a new file called GNUmakefile with contents:
+
+ARCH=x86
+CROSS_COMPILE=/opt/cross/gcc-13.2.0-nolibc/x86_64-linux/bin/x86_64-linux-
+export ARCH
+export CROSS_COMPILE
+
+Now the kernel will be compiled with the compiler from /opt/cross.
+
+Latest development version of sparse is needed, install it manually
+from the git repository:
+
+git clone https://git.kernel.org/pub/scm/devel/sparse/sparse.git/
+cd sparse
+make
+cp sparse ~/bin/
+
+As checkpatch is evolving and new tests are added, it's important that
+a correct version of checkpatch is used. If a wrong version is used
+ath12k-check will warn about that. To download the correct checkpatch
+version and install it to ~/bin:
+
+wget -O checkpatch.pl $CHECKPATCH_URL
+cp checkpatch.pl ~/bin/
+
+Note that the URL in above wget command is dynamically created and
+will change everytime ath12k-check is updated to use a new version of
+checkpatch.pl
+
+For gtags program you need to install package named global, for
+example in Debian/Ubuntu you can do that using apt:
+
+apt install global
+
+Alternatively (but not recommended!) if you want manually run
+checkpatch with the same settings as ath12k-check uses here's the
+command line:
 
 $CHECKPATCH_CMDLINE
-
-Latest version of sparse is needed, install it manually from the git repository:
-
-https://git.kernel.org/pub/scm/devel/sparse/sparse.git/
 '''
 
     checkpatch_cmdline = '%s foo.patch' % ' '.join(get_checkpatch_cmdline())
