@@ -77,6 +77,9 @@ checkpatch_filter = [
     ('ath12k_hal_srng_access_begin', 'VOLATILE'),
     ('ath12k_hal_srng_access_end', 'VOLATILE'),
     ('hal_srng', 'VOLATILE'),
+
+    # __ath12k_dbg has to use dev_printk() so that debug_mask always work
+    ('__ath12k_dbg', 'PREFER_DEV_LEVEL'),
 ]
 
 sparse_filter = []
