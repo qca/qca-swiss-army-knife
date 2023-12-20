@@ -1,0 +1,684 @@
+#!/usr/bin/python3
+#
+# Copyright (c) 2012-2015 Qualcomm Atheros, Inc.
+# Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+import ctypes
+import struct
+import optparse
+import time
+import math
+import logging
+import sys
+import os.path
+import traceback
+import binascii
+import tempfile
+import subprocess
+import hashlib
+
+DEFAULT_FW_API_VERSION = 2
+
+ATH11K_SIGNATURE = b'QCOM-ATH11K-FW'
+MAX_LEN = 50000000
+
+ATH11K_FW_IE_TIMESTAMP = 0
+ATH11K_FW_IE_FEATURES = 1
+ATH11K_FW_IE_AMSS_IMAGE = 2
+ATH11K_FW_IE_M3_IMAGE = 3
+
+# enum ath11k_fw_features from ath11k/fw.h
+ATH11K_FW_FEATURE_MAX = 1
+
+feature_map = {
+}
+
+# global variables
+logger = None
+
+
+class FWEncoderError(Exception):
+    pass
+
+
+def get_output_name(fw_api=None):
+    if fw_api is not None:
+        api = fw_api
+    else:
+        api = DEFAULT_FW_API_VERSION
+
+    return 'firmware-%s.bin' % api
+
+
+class FirmwareContainer:
+
+    def add_element(self, type_id, value):
+        length = len(value)
+        padding_len = padding_needed(length)
+        length = length + padding_len
+
+        padding = ctypes.create_string_buffer(padding_len)
+
+        for i in range(padding_len):
+            struct.pack_into('<B', padding, i, 0x77)
+
+        logger.debug('adding id %d len(value) %d'
+                     'padding_len %d' % (type_id,
+                                         len(value),
+                                         padding_len))
+        fmt = '<ii%ds%ds' % (len(value), padding_len)
+        struct.pack_into(fmt, self.buf, self.buf_len, type_id, len(value),
+                         value, padding.raw)
+        self.buf_len = self.buf_len + 4 + 4 + len(value) + padding_len
+
+    def add_u32(self, type_id, value):
+        if not type(value) is int:
+            raise FWEncoderError('u32 IE %d is not int: %s' %
+                                 (type_id, str(value)))
+
+        buf = ctypes.create_string_buffer(4)
+        struct.pack_into("<i", buf, 0, value)
+        self.add_element(type_id, buf.raw)
+
+    def read_u32(self, type_id):
+        (val,) = struct.unpack_from("<i", self.elements[type_id])
+        return val
+
+    def add_bitmap(self, ie, enabled, maximum):
+
+        if (max(enabled) >= maximum):
+            logger.error("bitmap %d out of maximum (%d >= %d)" %
+                         (ie, max(enabled), maximum))
+            return
+
+        bytes = [0] * maximum
+
+        for i in range(maximum):
+            if i not in enabled:
+                continue
+
+            max_set = i
+            index = i / 8
+            bit = i % 8
+            bytes[index] = bytes[index] | (1 << bit)
+
+        # remove trailing null bits away, that changing only
+        # maximum doesn't affect created binary size
+        length = int(math.ceil((max_set + 1) / float(8)))
+        bytes = bytes[:length]
+
+        buf = ctypes.create_string_buffer(length)
+
+        for index in range(length):
+            struct.pack_into('<B', buf, index, bytes[index])
+
+        self.add_element(ie, buf.raw)
+
+    def read_bitmap(self, ie):
+        buf = self.elements[ie]
+        length = len(buf)
+
+        bits = []
+
+        for index in range(length):
+            val = struct.unpack_from('<B', buf, index)[0]
+
+            for bit in range(8):
+                if val & 0x1:
+                    bits.append(index * 8 + bit)
+
+                val = val >> 1
+
+        return bits
+
+    def set_signature(self, signature):
+        self.signature = signature
+        self.signature_len = len(signature)
+
+        # include the null byte
+        length = len(signature) + 1
+
+        padding_len = padding_needed(length)
+
+        length = length + padding_len
+
+        padding = ctypes.create_string_buffer(padding_len)
+
+        for i in range(padding_len):
+            struct.pack_into('<B', padding, i, 0x77)
+
+        fmt = '<%dsb%ds' % (len(signature), padding_len)
+        struct.pack_into(fmt, self.buf, 0, signature, 0, padding.raw)
+        self.buf_len = length
+
+    def write(self, name):
+        f = open(name, 'wb')
+        f.write(self.buf.raw[:self.buf_len])
+        f.close()
+
+        return self.buf_len
+
+    def open(self, name):
+        f = open(name, 'rb')
+        self.buf = f.read()
+        self.buf_len = len(self.buf)
+        f.close()
+
+        offset = 0
+
+        fmt = '<%dsb' % (self.signature_len)
+        (signature, null) = struct.unpack_from(fmt, self.buf, offset)
+        offset = offset + self.signature_len + 1
+
+        if signature != self.signature or null != 0:
+            logger.error("Invalid signature!")
+            return False
+
+        offset = self.signature_len + 1
+        offset = offset + padding_needed(offset)
+
+        self.elements = {}
+
+        while offset + 4 + 4 < self.buf_len:
+            (type_id, length) = struct.unpack_from("<ii", self.buf, offset)
+            offset = offset + 4 + 4
+
+            if offset + length > self.buf_len:
+                logger.error("Buffer too short")
+                return
+
+            fmt = '<%ds' % length
+            (payload,) = struct.unpack_from(fmt, self.buf, offset)
+            offset = offset + length
+            offset = offset + padding_needed(offset)
+
+            self.elements[type_id] = payload
+
+        return True
+
+    def __init__(self, signature):
+        self.buf = ctypes.create_string_buffer(MAX_LEN)
+        self.buf_len = 0
+
+        self.set_signature(signature)
+
+
+class Ath11kFirmwareContainer(object):
+    def _load_file(self, name):
+        if os.path.getsize(name) > MAX_LEN:
+            raise FWEncoderError('file %s is too large, maximum size is %d' %
+                                 (name, MAX_LEN))
+
+        f = open(name, 'rb')
+        buf = f.read()
+        f.close()
+
+        return buf
+
+    def set_features(self, features):
+        self.features = features.split(',')
+
+        enabled = []
+        for capa in self.features:
+            if capa not in feature_map:
+                print("Error: '%s' not found from the feature map" % capa)
+                return 1
+
+            enabled.append(feature_map[capa])
+
+        self.features_bitmap = enabled
+
+    def get_features(self):
+        s = ""
+
+        if self.features_bitmap is None:
+            return None
+
+        for capa in self.features_bitmap:
+            # find value from the dict
+            try:
+                name = [key for key, value in feature_map.items()
+                        if value == capa][0]
+            except IndexError:
+                name = str(capa)
+
+            s = s + name + ","
+
+        # strip last comma
+        if len(s) > 0:
+            s = s[:-1]
+
+        return s
+
+    def set_amss_image(self, amss_image_name):
+        self.amss_image = self._load_file(amss_image_name)
+
+    def get_amss_image(self):
+        return self.amss_image
+
+    def set_m3_image(self, m3_image_name):
+        self.m3_image = self._load_file(m3_image_name)
+
+    def get_m3_image(self):
+        return self.m3_image
+
+    def set_timestamp(self, timestamp):
+        self.timestamp = int(timestamp)
+
+    def get_timestamp(self):
+        return self.timestamp
+
+    def get_timestamp_as_iso8601(self):
+        if self.timestamp is None:
+            return None
+
+        return time.strftime('%Y-%m-%d %H:%M:%S',
+                             time.gmtime(self.timestamp))
+
+    def get_summary(self):
+        s = ''
+
+        s = s + 'FileSize: %s\n' % (len(self.file))
+        s = s + 'FileCRC32: %08x\n' % (_crc32(self.file))
+        s = s + 'FileMD5: %s\n' % (hashlib.md5(self.file).hexdigest())
+
+        if self.get_timestamp():
+            s = s + 'Timestamp: %s\n' % (self.get_timestamp_as_iso8601())
+
+        if self.get_features():
+            s = s + 'Features: %s\n' % (self.get_features())
+
+        if self.get_amss_image():
+            s = s + 'AMSSImageSize: %s\n' % (len(self.get_amss_image()))
+            s = s + 'AMSSImageCRC32: %08x\n' % (_crc32(self.get_amss_image()))
+
+        if self.get_m3_image():
+            s = s + 'M3ImageSize: %s\n' % (len(self.get_m3_image()))
+            s = s + 'M3ImageCRC32: %08x\n' % (_crc32(self.get_m3_image()))
+
+        return s.strip()
+
+    def load(self, filename):
+        c = FirmwareContainer(ATH11K_SIGNATURE)
+        c.open(filename)
+
+        self.file = c.buf
+
+        for e in c.elements:
+            if e == ATH11K_FW_IE_TIMESTAMP:
+                self.timestamp = c.read_u32(e)
+            elif e == ATH11K_FW_IE_M3_IMAGE:
+                self.m3_image = c.elements[e]
+            elif e == ATH11K_FW_IE_AMSS_IMAGE:
+                self.amss_image = c.elements[e]
+            elif e == ATH11K_FW_IE_FEATURES:
+                self.features_bitmap = c.read_bitmap(ATH11K_FW_IE_FEATURES)
+            else:
+                print("Unknown IE: ", e)
+
+    def save(self, filename):
+        self.container = FirmwareContainer(ATH11K_SIGNATURE)
+
+        if self.timestamp:
+            self.container.add_u32(ATH11K_FW_IE_TIMESTAMP, self.timestamp)
+
+        # FIXME: m3 should be after amss_image but that breaks the
+        # current tests
+        if self.m3_image:
+            self.container.add_element(ATH11K_FW_IE_M3_IMAGE, self.m3_image)
+
+        if self.amss_image:
+            self.container.add_element(ATH11K_FW_IE_AMSS_IMAGE, self.amss_image)
+
+        # FIXME: features should be before amss_image but that breaks
+        # the current tests
+        if self.features_bitmap:
+            self.container.add_bitmap(ATH11K_FW_IE_FEATURES,
+                                      self.features_bitmap,
+                                      ATH11K_FW_FEATURE_MAX)
+
+        return self.container.write(filename)
+
+    def __init__(self):
+        self.timestamp = None
+        self.features = None
+        self.features_bitmap = None
+        self.amss_image = None
+        self.m3_image = None
+
+
+# to workaround annoying python feature of returning negative hex values
+def hex32(val):
+    return val & 0xffffffff
+
+
+# match with kernel crc32_le(0, buf, buf_len) implementation
+def _crc32(buf):
+    return hex32(~(hex32(binascii.crc32(buf, 0xffffffff))))
+
+
+def padding_needed(length):
+    if length % 4 != 0:
+        return 4 - length % 4
+
+    return 0
+
+
+def is_int(val):
+    try:
+        int(val)
+        return True
+    except ValueError:
+        return False
+
+
+def write_file(filename, buf):
+    f = open(filename, 'wb')
+    f.write(buf)
+    f.close
+
+
+def info(options, args):
+
+    if len(args) != 1:
+        print('Filename missing')
+        return 1
+
+    filename = args[0]
+
+    c = Ath11kFirmwareContainer()
+    c.load(filename)
+
+    print(c.get_summary())
+
+
+def dump(options, args):
+
+    if len(args) != 1:
+        print('Filename missing')
+        return 1
+
+    filename = args[0]
+
+    c = Ath11kFirmwareContainer()
+    c.load(filename)
+
+    print("ath11k-fwencoder --create \\")
+
+    if c.get_timestamp() and options.show_timestamp:
+        print("--timestamp=%u \\" % c.get_timestamp())
+
+    if c.get_features():
+        print("--features=%s \\" % c.get_features())
+
+    if c.get_amss_image():
+        name = "amss.bin"
+        print("--amss=%s \\" % name)
+
+    if c.get_m3_image():
+        name = "m3.bin"
+        print("--m3=%s \\" % name)
+
+    print()
+
+
+def extract(options, args):
+
+    if len(args) != 1:
+        print('Filename missing')
+        return 1
+
+    filename = args[0]
+
+    c = Ath11kFirmwareContainer()
+    c.load(filename)
+
+    if c.get_amss_image():
+        name = "amss.bin"
+        write_file(name, c.get_amss_image())
+        print('%s extracted: %d B' % (name, len(c.get_amss_image())))
+
+    if c.get_m3_image():
+        name = "m3.bin"
+        write_file(name, c.get_m3_image())
+        print('%s extracted: %d B' % (name, len(c.get_m3_image())))
+
+    print()
+
+
+def modify(options, args):
+    if len(args) != 1:
+        print('Filename missing')
+        return 1
+
+    filename = args[0]
+
+    c = Ath11kFirmwareContainer()
+    c.load(filename)
+
+    if options.timestamp:
+        stamp = str(int(options.timestamp))
+    else:
+        # if no timestamp provided use the current time so that the
+        # timestamp shows the time of last modication
+        stamp = int(time.time())
+
+    c.set_timestamp(stamp)
+
+    if options.m3:
+        c.set_m3_image(options.m3)
+
+    if options.amss:
+        c.set_amss_image(options.amss)
+
+    if options.features:
+        c.set_features(options.features)
+
+    file_len = c.save(filename)
+
+    print('%s modified: %d B' % (filename, file_len))
+
+
+def create(options):
+    output = get_output_name(options.fw_api)
+
+    if options.output:
+        output = options.output
+
+    c = Ath11kFirmwareContainer()
+
+    # always add a timestamp
+    if options.timestamp:
+        stamp = int(options.timestamp)
+    else:
+        stamp = int(time.time())
+
+    c.set_timestamp(stamp)
+
+    if options.m3:
+        c.set_m3_image(options.m3)
+
+    if options.amss:
+        c.set_amss_image(options.amss)
+
+    if options.features:
+        c.set_features(options.features)
+
+    file_len = c.save(output)
+
+    print('%s created: %d B' % (output, file_len))
+
+
+def cmd_crc32(options, args):
+    if len(args) != 1:
+        print('Filename missing')
+        return 1
+
+    filename = args[0]
+
+    f = open(filename, 'rb')
+    buf = f.read()
+    print('%08x' % (_crc32(buf)))
+    f.close()
+
+
+def cmd_diff(options, args):
+    if len(args) != 2:
+        print('Usage: ath11k-fwencoder --diff FILE FILE')
+        return 1
+
+    filename1 = args[0]
+    filename2 = args[1]
+
+    c1 = Ath11kFirmwareContainer()
+    c1.load(filename1)
+    (temp1_fd, temp1_pathname) = tempfile.mkstemp(text=True)
+
+    # for some reason text=True is not working with mkstemp() so open
+    # the file manually
+    f = open(temp1_pathname, 'w')
+    f.write(c1.get_summary())
+    f.close()
+
+    c2 = Ath11kFirmwareContainer()
+    c2.load(filename2)
+    (temp2_fd, temp2_pathname) = tempfile.mkstemp(text=True)
+
+    # for some reason text=True is not working with mkstemp() so open
+    # the file manually
+    f = open(temp2_pathname, 'w')
+    f.write(c2.get_summary())
+    f.close()
+
+    # '--less-mode' and '--auto-page' would be nice when running on
+    # terminal but don't know how to get the control character
+    # through. For terminal detection sys.stdout.isatty() can be used.
+    cmd = ['wdiff', temp1_pathname, temp2_pathname]
+
+    # wdiff is braindead and returns 1 in a succesfull case
+    try:
+        output = subprocess.check_output(cmd, universal_newlines=True)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            output = e.output
+        else:
+            logger.error('Failed to run wdiff: %d\n%s' % (e.returncode, e.output))
+            return 1
+    except OSError as e:
+        logger.error('Failed to run wdiff: %s' % (e))
+        return 1
+
+    print(output)
+
+    os.close(temp1_fd)
+    os.close(temp2_fd)
+
+
+def main():
+    global logger
+
+    logger = logging.getLogger('ath11k-fwencoder')
+    logging.basicConfig(format='%(levelname)s: %(message)s')
+
+    parser = optparse.OptionParser()
+
+    # actions
+    parser.add_option("-c", "--create", action="store_true", dest="create",
+                      help='Create container file '
+                           'for ath11k (%s)' % get_output_name())
+    parser.add_option("-D", "--dump-cmdline", action="store_true", dest="dump",
+                      help='Show the cmdline used to create '
+                           'this container file')
+    parser.add_option('--dump', action='store_true', dest='dump',
+                      help='Same as --dump-cmdline '
+                      '(for backwards compatibility)')
+    parser.add_option("-e", "--extract", action="store_true", dest="extract",
+                      help='Extract binary files from the container file '
+                           'and dump cmdline as well')
+    parser.add_option("--info", action="store_true", dest="info",
+                      help='Show information about the container file')
+    parser.add_option("--modify", action="store_true", dest="modify",
+                      help='Modify the container file')
+    parser.add_option('--crc32', action='store_true', dest='crc32',
+                      help='Count crc32 checksum for a file')
+    parser.add_option('--diff', action='store_true', dest='diff',
+                      help='Show differences between two firmware files')
+
+    # parameters
+    parser.add_option("-o", "--output", action="store", type="string",
+                      dest="output", help='Name of output file')
+
+    # FW IEs, only use long style of option names!
+    parser.add_option("--m3", action="store", type="string",
+                      dest="m3",
+                      help='Name of m3.bin file')
+    parser.add_option("--amss", action="store", type="string",
+                      dest="amss",
+                      help='Name of amss.bin file')
+    parser.add_option("--timestamp", action="store",
+                      type="string", dest="timestamp",
+                      help='Timestamp to be used (seconds)')
+
+    parser.add_option("--features", action="store",
+                      type="string", dest="features",
+                      help='feature bits to be enabled: %s' %
+                           list(feature_map.keys()))
+    parser.add_option("--set-fw-api", action="store",
+                      type="string", dest="fw_api",
+                      help='Set firmware API used in creating the name for '
+                           'output file (Default: %s)' %
+                           DEFAULT_FW_API_VERSION)
+
+    # debug etc
+    parser.add_option('--show-timestamp', action='store_true',
+                      dest='show_timestamp',
+                      help='Show timestamp in --dump-cmdline action. '
+                      'It is not shown by default so that the timestamp would be correct')
+    parser.add_option('-d', '--debug', action='store_true', dest='debug',
+                      help='Enable debug messages')
+
+    (options, args) = parser.parse_args()
+
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+
+    if options.create:
+        try:
+            return create(options)
+        except FWEncoderError as e:
+            print('Create failed: %s' % e)
+            sys.exit(2)
+        except Exception as e:
+            print('Create failed: %s' % e)
+            traceback.print_exc()
+            sys.exit(3)
+    elif options.dump:
+        return dump(options, args)
+    elif options.extract:
+        return extract(options, args)
+    elif options.info:
+        return info(options, args)
+    elif options.modify:
+        return modify(options, args)
+    elif options.crc32:
+        return cmd_crc32(options, args)
+    elif options.diff:
+        return cmd_diff(options, args)
+    else:
+        print('Action command missing')
+        return 1
+
+if __name__ == "__main__":
+    main()
