@@ -326,7 +326,7 @@ class BoardContainer:
         offset += length
 
         # make sure ATH10K_BOARD_SIGNATURE_LEN is correct
-        assert(ATH10K_BOARD_SIGNATURE_LEN == length)
+        assert ATH10K_BOARD_SIGNATURE_LEN == length
 
         return offset
 
