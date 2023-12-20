@@ -644,9 +644,8 @@ def cmd_install(args):
 
     logger.debug('Installing to directory %s' % (installdir))
 
+    # install firmware files
     for hw in sorted(hws.values()):
-        bd_list = hw.board_files
-
         # every Hardware() should have at least one firmware branch, the
         # main '.' branch so no need to check the length
         fw_list = sorted(sorted(hw.firmware_branches)[-1].firmwares)
@@ -708,7 +707,10 @@ def cmd_install(args):
             logger.debug(
                 'No update needed for %s (%s)' % (dest, fw.fw_ver))
 
-        # install board files
+    # install board files
+    for hw in sorted(hws.values()):
+        bd_list = hw.board_files
+
         for bd in bd_list:
             installed = []
             dest = os.path.join(installdir, bd.path)
