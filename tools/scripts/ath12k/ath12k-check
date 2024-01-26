@@ -274,6 +274,11 @@ def run_checkpatch_cmd(args, q, tag_map):
 
         q.task_done()
 
+# get all driver files which are commited to git, includes Kconfig, Makefile etc
+def get_commited_files():
+    cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
+    output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
+    return output.splitlines()
 
 def run_checkpatch(args):
     md5sum = get_checkpatch_md5sum()
@@ -281,10 +286,7 @@ def run_checkpatch(args):
         print('WARNING: checkpatch.pl md5sum %s does not match with %s' %
               (md5sum, CHECKPATCH_MD5SUM))
 
-    # get all files which need to be checked
-    cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
-    output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
-    driver_files = output.splitlines()
+    driver_files = get_commited_files()
 
     # drop files we need to ignore
     for name in IGNORE_FILES:
