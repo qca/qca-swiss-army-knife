@@ -276,8 +276,8 @@ def run_checkpatch_cmd(args, q, tag_map):
 
 # get all driver files which are commited to git, includes Kconfig, Makefile etc
 def get_commited_files():
-    cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
-    output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
+    cmd = ['git', 'ls-tree', '--name-only', 'HEAD', DRIVER_DIR]
+    output = subprocess.check_output(cmd, universal_newlines=True)
     return output.splitlines()
 
 def run_checkpatch(args):
