@@ -348,6 +348,10 @@ def run_checkpatch(args):
 
     return 0
 
+def run_kdoc(args):
+    p = subprocess.run(['scripts/kernel-doc', '-Werror', '-none'] +
+                       get_commited_files())
+    return p.returncode
 
 def show_version(args):
     host_gcc_version = 'not found'
@@ -564,6 +568,11 @@ $CHECKPATCH_CMDLINE
         if ret != 0:
             logger.debug('checkpatch failed: %d', ret)
             sys.exit(3)
+
+    ret = run_kdoc(args)
+    if ret != 0:
+        logger.debug('kernel-doc failed: %d', ret)
+        sys.exit(4)
 
 if __name__ == "__main__":
     main()
