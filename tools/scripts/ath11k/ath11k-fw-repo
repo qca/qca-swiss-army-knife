@@ -463,14 +463,14 @@ def install_file(args, srcpath, destdir, destfilename):
 
 
 def get_firmware_version(path):
-    cmd = ['ath10k-fwencoder', '--info', path]
+    cmd = ['ath11k-fwencoder', '--info', path]
     info = subprocess.check_output(cmd, universal_newlines=True)
     msg = email.message_from_string(info)
     return msg['FirmwareVersion']
 
 
 def get_board_crc32(path):
-    cmd = ['ath10k-fwencoder', '--crc32', path]
+    cmd = ['ath11k-fwencoder', '--crc32', path]
     return subprocess.check_output(cmd, universal_newlines=True).strip()
 
 
@@ -709,13 +709,13 @@ def cmd_list_lib_dir(args):
         for filename in sorted(filenames):
             path = os.path.join(dirpath, filename)
 
-            match = re.match('firmware.*\.bin', filename)
+            match = re.match(r'firmware.*\.bin', filename)
             if match is not None:
                 # this is a firmware file
                 s = '%s\t%s' % (filename, get_firmware_version(path))
                 found.append(s)
 
-            match = re.match('board.*\.bin', filename)
+            match = re.match(r'board.*\.bin', filename)
             if match is not None:
                 # this is a board file
                 s = '%s\t%s' % (filename, get_board_crc32(path))
