@@ -80,6 +80,9 @@ checkpatch_filter = [
 
     # __ath12k_dbg has to use dev_printk() so that debug_mask always work
     ('__ath12k_dbg', 'PREFER_DEV_LEVEL'),
+
+    # couldn't figure a way to avoid the reuse warning
+    ('for_each_ar', 'MACRO_ARG_REUSE'),
 ]
 
 sparse_filter = []
@@ -215,16 +218,30 @@ def parse_checkpatch_warning(line):
 
 
 def is_filtered(cpwarning):
-    if cpwarning.tag is None:
-        return False
-
     for (tag, type) in checkpatch_filter:
-        matchobj = re.match(tag, cpwarning.tag)
-        if matchobj is None:
-            continue
+        if cpwarning.tag is not None:
+            # the global tool was able to find a tag name for this
+            # line so use it directly
+            matchobj = re.match(tag, cpwarning.tag)
+            if matchobj is None:
+                continue
 
-        if cpwarning.type == type:
-            return True
+            if cpwarning.type == type:
+                return True
+        else:
+            # the global tool was not able to find a tag name for this
+            # line so instead check the actual line in the file
+            f = open(cpwarning.path)
+            buf = f.read()
+            f.close()
+
+            lineno = int(cpwarning.lineno) - 1
+            lines = buf.splitlines()
+            line = lines[lineno]
+            logger.debug('file %r tag %r line %r' % (cpwarning.path, tag, line))
+
+            if tag in line:
+                return True
 
     return False
 
