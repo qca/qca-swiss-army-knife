@@ -623,7 +623,7 @@ def git_rm(args, repodir, files):
 
 
 def cmd_check(args):
-    scan_repository('.')
+    scan_repository(args, '.')
 
 
 def cmd_list(args):
