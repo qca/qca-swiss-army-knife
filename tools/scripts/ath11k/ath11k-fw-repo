@@ -319,7 +319,7 @@ class Firmware():
                 return
 
 
-def scan_branch_dir(path):
+def scan_branch_dir(args, path):
     fw_list = []
 
     files = os.listdir(path)
@@ -347,7 +347,7 @@ def scan_branch_dir(path):
 
 
 # QCA988X/hw2.0
-def scan_hw_ver(hw):
+def scan_hw_ver(args, hw):
     path = hw.get_path()
     files = os.listdir(path)
     files.sort()
@@ -374,9 +374,14 @@ def scan_hw_ver(hw):
 
             logger.debug('Found firmware branch: %s' % (fw_branch))
             fb = FirmwareBranch(fw_branch, fw_branch_path)
+
+            if args.no_testing and fb.testing_branch:
+                # skip testing branches
+                continue
+
             hw.firmware_branches.append(fb)
 
-            fw = scan_branch_dir(fw_branch_path)
+            fw = scan_branch_dir(args, fw_branch_path)
             fb.firmwares += fw
 
     files = os.listdir(path)
@@ -389,7 +394,7 @@ def scan_hw_ver(hw):
 
 
 # QCA98XX
-def scan_hw(path):
+def scan_hw(args, path):
     hws = []
 
     files = os.listdir(path)
@@ -408,7 +413,7 @@ def scan_hw(path):
         logger.debug('Found hw version: %s' % (hw_ver))
 
         hw = Hardware(path, hw_ver)
-        scan_hw_ver(hw)
+        scan_hw_ver(args, hw)
 
         if len(hw.firmware_branches) == 0:
             logger.debug('Skipping due to no firmware branches found: %s' % (hw.name))
@@ -419,7 +424,7 @@ def scan_hw(path):
     return hws
 
 
-def scan_repository(directory):
+def scan_repository(args, directory):
     hws = {}
 
     files = os.listdir(directory)
@@ -435,7 +440,7 @@ def scan_repository(directory):
 
         logger.debug('Found hw: %s' % (hw_name))
 
-        hw_list = scan_hw(hw_name)
+        hw_list = scan_hw(args, hw_name)
 
         for hw in hw_list:
             hws[hw.name] = hw
@@ -618,13 +623,13 @@ def git_rm(args, repodir, files):
 
 
 def cmd_check(args):
-    scan_repository('.')
+    scan_repository(args, '.')
 
 
 def cmd_list(args):
     level = 0
 
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
     for hw in sorted(hws.values()):
         pi(level, '%s:' % (hw.name))
         level += 1
@@ -657,7 +662,7 @@ def cmd_list(args):
 
 
 def cmd_list_hardware(args):
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
     for hw in sorted(hws.values()):
         print(hw.name)
 
@@ -666,7 +671,7 @@ def cmd_list_branches(args):
     hw_name = args.list_branches[0]
     hw_ver = args.list_branches[1]
 
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
     for hw in sorted(hws.values()):
         if hw.name == '%s %s' % (hw_name, hw_ver):
             for branch in sorted(hw.firmware_branches):
@@ -680,7 +685,7 @@ def cmd_list_releases(args):
     hw_ver = args.list_releases[1]
     fw_branch = args.list_releases[2]
 
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
     for hw in sorted(hws.values()):
         if hw.name == '%s %s' % (hw_name, hw_ver):
             for branch in sorted(hw.firmware_branches):
@@ -737,7 +742,7 @@ def cmd_get_latest_in_branch(args):
     if not args.debug:
         logger.setLevel(logging.ERROR)
 
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
 
     args_hw = args.get_latest_in_branch[0]
     args_hwver = args.get_latest_in_branch[1]
@@ -779,7 +784,7 @@ def cmd_get_latest_in_hw(args):
     if not args.debug:
         logger.setLevel(logging.ERROR)
 
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
 
     args_hw = args.get_latest[0]
     args_hwver = args.get_latest[1]
@@ -805,7 +810,7 @@ def cmd_get_latest_in_hw(args):
 
 
 def cmd_install(args):
-    hws = scan_repository('.')
+    hws = scan_repository(args, '.')
 
     linux_firmware = args.install[0]
     ath11kdir = os.path.join(linux_firmware, ATH11K_DIR)
@@ -995,6 +1000,9 @@ def main():
     parser.add_argument('--get-latest', action='store', nargs=2,
                         metavar=('HW', 'HWVER'),
                         help='Show latest firmware version for hardware version. Just outputs the version for easy parsing in scripts.')
+
+    parser.add_argument('--no-testing', action='store_true',
+                        help='Do not include testing branches.')
 
     args = parser.parse_args()
 
