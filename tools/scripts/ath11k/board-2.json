@@ -648,6 +648,18 @@
                     "bus=pci,vendor=17cb,device=1103,subsystem-vendor=17cb,subsystem-device=0108,qmi-chip-id=18,qmi-board-id=255,variant=volterra"
                 ],
                 "data": "bus=pci,vendor=17cb,device=1103,subsystem-vendor=17cb,subsystem-device=0108,qmi-chip-id=18,qmi-board-id=140,variant=LE_X13S.bin"
+            },            
+            {
+                "names": [
+                    "bus=pci,vendor=17cb,device=1103,subsystem-vendor=105b,subsystem-device=e108,qmi-chip-id=2,qmi-board-id=255"
+                ],
+		"data": "bus=pci,vendor=17cb,device=1103,subsystem-vendor=105b,subsystem-device=e0c4,qmi-chip-id=2,qmi-board-id=255,variant=HP_G8_Lancia14.bin"
+            },            
+            {
+                "names": [
+                    "bus=pci,vendor=17cb,device=1103,subsystem-vendor=105b,subsystem-device=e108,qmi-chip-id=18,qmi-board-id=255"
+                ],
+		"data": "bus=pci,vendor=17cb,device=1103,subsystem-vendor=105b,subsystem-device=e0c4,qmi-chip-id=18,qmi-board-id=255,variant=HP_G8_Lancia14.bin"
             }            
         ],
         "regdb": [
