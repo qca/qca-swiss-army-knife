@@ -39,14 +39,16 @@ ATH12K_FW_IE_TIMESTAMP = 0
 ATH12K_FW_IE_FEATURES = 1
 ATH12K_FW_IE_AMSS_IMAGE = 2
 ATH12K_FW_IE_M3_IMAGE = 3
-ATH11K_FW_IE_AMSS_DUALMAC_IMAGE = 4
+ATH12K_FW_IE_AMSS_DUALMAC_IMAGE = 4
 
-# enum ath12k_fw_features from ath12k/core.h
+# enum ath12k_fw_features from ath12k/fw.h
 ATH12K_FW_FEATURE_MULTI_QRTR_ID = 0
-ATH12K_FW_FEATURE_MAX = 1
+ATH12K_FW_FEATURE_MLO = 1
+ATH12K_FW_FEATURE_MAX = 2
 
 feature_map = {
     'multi-qrtr-id': ATH12K_FW_FEATURE_MULTI_QRTR_ID,
+    'mlo': ATH12K_FW_FEATURE_MLO,
 }
 
 # global variables
@@ -337,7 +339,7 @@ class Ath12kFirmwareContainer(object):
                 self.m3_image = c.elements[e]
             elif e == ATH12K_FW_IE_AMSS_IMAGE:
                 self.amss_image = c.elements[e]
-            elif e == ATH11K_FW_IE_AMSS_DUALMAC_IMAGE:
+            elif e == ATH12K_FW_IE_AMSS_DUALMAC_IMAGE:
                 self.amss_dualmac_image = c.elements[e]
             elif e == ATH12K_FW_IE_FEATURES:
                 self.features_bitmap = c.read_bitmap(ATH12K_FW_IE_FEATURES)
@@ -359,7 +361,7 @@ class Ath12kFirmwareContainer(object):
             self.container.add_element(ATH12K_FW_IE_AMSS_IMAGE, self.amss_image)
 
         if self.amss_dualmac_image:
-            self.container.add_element(ATH11K_FW_IE_AMSS_DUALMAC_IMAGE, self.amss_dualmac_image)
+            self.container.add_element(ATH12K_FW_IE_AMSS_DUALMAC_IMAGE, self.amss_dualmac_image)
 
         # FIXME: features should be before amss_image but that breaks
         # the current tests
