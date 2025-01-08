@@ -65,6 +65,10 @@ checkpatch_filter = [
     # ATH12K_QMI_MAX_CHUNK_SIZE
     ('ATH12K_QMI_MAX_CHUNK_SIZE', 'LONG_LINE'),
 
+    # allow long line copyrights
+    # note gtags returns None so search for the literal string
+    ('Copyright \(c\)', 'LONG_LINE'),
+
     # trace.h has warnings which don't make sense to fix
     ('TRACE_SYSTEM', 'OPEN_ENDED_LINE'),
 
