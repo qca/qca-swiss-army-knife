@@ -84,6 +84,7 @@ checkpatch_filter = [
 
     # __ath12k_dbg has to use dev_printk() so that debug_mask always work
     ('__ath12k_dbg', 'PREFER_DEV_LEVEL'),
+    ('__ath12k_dbg', 'PREFER_PR_LEVEL'),
 
     # couldn't figure a way to avoid the reuse warning
     ('for_each_ar', 'MACRO_ARG_REUSE'),
