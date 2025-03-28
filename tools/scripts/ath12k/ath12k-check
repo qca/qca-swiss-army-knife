@@ -118,7 +118,7 @@ def run_gcc(args):
     # to disable utf-8 from gcc, easier to paste that way
     os.environ['LC_CTYPE'] = 'C'
 
-    cmd = 'rm -f %s/*.o' % (DRIVER_DIR)
+    cmd = 'find %s -name "*.o" -type f -delete' % (DRIVER_DIR)
     logger.debug('%s' % cmd)
     subprocess.call(cmd, shell=True, universal_newlines=True)
 
@@ -298,7 +298,7 @@ def run_checkpatch_cmd(args, q, tag_map):
 
 # get all driver files which are commited to git, includes Kconfig, Makefile etc
 def get_commited_files():
-    cmd = ['git', 'ls-tree', '--name-only', 'HEAD', DRIVER_DIR]
+    cmd = ['git', 'ls-tree', '-r', '--name-only', 'HEAD', DRIVER_DIR]
     output = subprocess.check_output(cmd, universal_newlines=True)
     return output.splitlines()
 
