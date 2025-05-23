@@ -201,58 +201,32 @@ class Firmware():
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    # FIXME: firmware-5.bin_10.4-3.2-00080 and
-    # firmware-5.bin_10.4-3.2.1-00028 are sorted incorrectly
     def __lt__(self, other):
-        s = self.fw_ver
-        o = other.fw_ver
+        s = self.fw_ver.replace('-', '.').split('.')
+        o = other.fw_ver.replace('-', '.').split('.')
 
-        # FIXME: An ugly hack that to make the comparison easier to
-        # implement. Just to get some sort of simple sorting working
-        # replace '-' with '.' in version string. But now for example
-        # '10.2.4.70.2 > 10.2.4.70-2' is not compared correctly.
-
-        s = s.replace('-', '.')
-        o = o.replace('-', '.')
-
-        s = s.split('.')
-        o = o.split('.')
-
-        s2 = s
-        o2 = o
-
-        s = []
-        o = []
-
-        for t in s2:
+        def parse(val):
             try:
-                k = int(t)
-            except:
-                k = t
+                return int(val)
+            except ValueError:
+                return val
 
-            s.append(k)
-
-        for t in o2:
-            try:
-                k = int(t)
-            except:
-                k = t
-
-            o.append(k)
+        s = [parse(v) for v in s]
+        o = [parse(v) for v in o]
 
         l = min(len(s), len(o))
 
         for i in range(l):
+            if type(s[i]) != type(o[i]):
+                s[i] = str(s[i])
+                o[i] = str(o[i])
 
             if s[i] < o[i]:
                 return True
             elif s[i] > o[i]:
                 return False
 
-        if len(s) > len(o):
-            return False
-
-        return True
+        return len(s) < len(o)
 
     def __le__(self, other):
         return self.__lt__(other) or self.__eq__(other)
@@ -939,7 +913,10 @@ def cmd_install(args):
 
                 # even git_rm() removes the file need to remove the
                 # file separately in case --commit is not used
-                os.remove(filepath)
+                if os.path.isdir(filepath):
+                    shutil.rmtree(filepath)
+                else:
+                    os.remove(filepath)
 
                 git_rm(args, linux_firmware, [filepath])
                 installed.append(filepath)
