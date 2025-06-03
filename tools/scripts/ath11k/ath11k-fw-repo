@@ -31,6 +31,7 @@ logger = None
 
 BRANCH_DEFAULT_PRIORITY = 1000
 BRANCH_PRIORITY_FILE = '.priority'
+BRANCH_IGNORE_FILE = '.ignore'
 WHENCE_FILE = 'WHENCE'
 NOTICE_FILE = 'Notice.txt'
 NOTICE_FILE_LEN_MIN = 5000
@@ -352,7 +353,17 @@ def scan_hw_ver(args, hw):
     files = os.listdir(path)
     files.sort()
 
+    if os.path.exists(os.path.join(path, BRANCH_IGNORE_FILE)):
+        logger.debug('Ignoring hardware version: %s' % (path))
+        return
+
     for fw_branch in files:
+        fw_branch_path = os.path.join(path, fw_branch)
+
+        if os.path.exists(os.path.join(fw_branch_path, BRANCH_IGNORE_FILE)):
+            logger.debug('Ignoring firmware branch: %s' % (fw_branch))
+            continue
+
         if fw_branch == TESTING_BRANCH:
             # scan all directories under testing branch, eg. testing/1.2.3.4
             dirs = os.listdir(os.path.join(path, fw_branch))
