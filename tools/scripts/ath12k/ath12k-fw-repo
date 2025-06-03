@@ -206,40 +206,66 @@ class Firmware():
     def __lt__(self, other):
         s = self.fw_ver
         o = other.fw_ver
+        # There are two parts of version in FW name string, one that precedes
+        # -QCAHMTSWPL_V1.0_V2.0_SILICONZ- and one that succeeds the same.
+        # Extract the version parts and compare them.
+        # For Eg, WLAN.HMT.1.1.c5-00284-QCAHMTSWPL_V1.0_V2.0_SILICONZ-3
+        # Part1(prefix) = WLAN.HMT.1.1.c5-00284 and Part2(suffix) = 3
 
+        fw_1 = re.match(r'^(.*?)-QCA[^-]+(?:-([\w\.]+))?', s)
+        if fw_1:
+            s_pref = fw_1.group(1)
+            s_suf = fw_1.group(2)
+        else:
+            s_pref = s
+            s_suf = None
+
+        fw_2 = re.match(r'^(.*?)-QCA[^-]+(?:-([\w\.]+))?', o)
+        if fw_2:
+            o_pref = fw_2.group(1)
+            o_suf = fw_2.group(2)
+        else:
+            o_pref = o
+            o_suf = None
         # FIXME: An ugly hack that to make the comparison easier to
         # implement. Just to get some sort of simple sorting working
         # replace '-' with '.' in version string. But now for example
         # '10.2.4.70.2 > 10.2.4.70-2' is not compared correctly.
+        s_pref = s_pref.replace('-', '.').split('.')
+        o_pref = o_pref.replace('-', '.').split('.')
+        s = [int(item) if isinstance(item, str) and item.isdigit() else item for item in s_pref]
+        o = [int(item) if isinstance(item, str) and item.isdigit() else item for item in o_pref]
 
-        s = s.replace('-', '.')
-        o = o.replace('-', '.')
+        # Compare Part1 (prefix) version
+        l = min(len(s), len(o))
 
-        s = s.split('.')
-        o = o.split('.')
+        for i in range(l):
 
-        s2 = s
-        o2 = o
+            if s[i] < o[i]:
+                return True
+            elif s[i] > o[i]:
+                return False
 
-        s = []
-        o = []
+        # if the minimum length of two version string matches and one of
+        # the input has additional version numbers then consider that as
+        # latest.
+        if len(s) > len(o):
+            return False
+        elif len(s) < len(o):
+            return True
 
-        for t in s2:
-            try:
-                k = int(t)
-            except:
-                k = t
+        # If there is no suffix in either of FW, no further comparison
+        # needed.
+        if s_suf is not None and o_suf is None:
+            return False
+        if s_suf is None and o_suf is not None:
+            return True
 
-            s.append(k)
-
-        for t in o2:
-            try:
-                k = int(t)
-            except:
-                k = t
-
-            o.append(k)
-
+        # Compare Part2 (suffix) version if prefix matches.
+        s_suf = s_suf.replace('-', '.').split('.')
+        o_suf = o_suf.replace('-', '.').split('.')
+        s = [int(item) if isinstance(item, str) and item.isdigit() else item for item in s_suf]
+        o = [int(item) if isinstance(item, str) and item.isdigit() else item for item in o_suf]
         l = min(len(s), len(o))
 
         for i in range(l):
