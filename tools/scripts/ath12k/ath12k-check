@@ -31,8 +31,8 @@ import string
 import hashlib
 import shutil
 
-CHECKPATCH_COMMIT = '296455ade1fdcf5f8f8c033201633b60946c589a'
-CHECKPATCH_MD5SUM = '77c655474ed7622c0077caf2f0d7c440'
+CHECKPATCH_COMMIT = '99b70ece33d87500ef7bee8e32cb99772c45ce14'
+CHECKPATCH_MD5SUM = 'b3c97930952745672f3408dabc244843'
 
 GIT_URL = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
