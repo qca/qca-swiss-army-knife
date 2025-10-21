@@ -31,7 +31,7 @@ import string
 import hashlib
 import distutils.spawn
 
-CHECKPATCH_COMMIT = '362173572a4018e9c8e39c616823189c41d39d41'
+CHECKPATCH_COMMIT = '99b70ece33d87500ef7bee8e32cb99772c45ce14'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
@@ -86,6 +86,7 @@ checkpatch_filter = [
     ('wmi_tlv_policy', 'SPACING'),
     ('ath10k_core_register_work', 'RETURN_VOID'),
     ('ATH10K_HW_RATE_CCK_.*', 'LONG_LINE'),
+    ('ATH10K_DFS_STAT_INC', 'MACRO_ARG_UNUSED'),
 
     # checkpatch doesn't like uninitialized_var()
     ('ath10k_init_hw_params', 'FUNCTION_ARGUMENTS'),
