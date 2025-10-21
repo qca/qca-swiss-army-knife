@@ -31,8 +31,8 @@ import string
 import hashlib
 import shutil
 
-CHECKPATCH_COMMIT = '296455ade1fdcf5f8f8c033201633b60946c589a'
-CHECKPATCH_MD5SUM = '77c655474ed7622c0077caf2f0d7c440'
+CHECKPATCH_COMMIT = '99b70ece33d87500ef7bee8e32cb99772c45ce14'
+CHECKPATCH_MD5SUM = 'b3c97930952745672f3408dabc244843'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
@@ -90,6 +90,7 @@ CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
 checkpatch_filter = [
     ('ath11k_read_simulate_fw_crash', 'LONG_LINE'),
     ('qmi_wlanfw_respond_mem_req_msg_v01', 'LONG_LINE'),
+    ('DEFINE_EVENT', 'MACRO_ARG_UNUSED'),
 ]
 
 sparse_filter = [r'warning: dubious: x & !y']
