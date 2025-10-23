@@ -93,7 +93,11 @@ checkpatch_filter = [
     ('DEFINE_EVENT', 'MACRO_ARG_UNUSED'),
 ]
 
-sparse_filter = [r'warning: dubious: x & !y']
+sparse_filter = [
+    r'warning: dubious: x & !y',
+    # sparse doesn't correctly handle guard()
+    r'warning: context imbalance in .* - wrong count at exit',
+]
 
 # global variables
 
