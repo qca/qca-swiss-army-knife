@@ -90,7 +90,10 @@ checkpatch_filter = [
     ('for_each_ar', 'MACRO_ARG_REUSE'),
 ]
 
-sparse_filter = []
+sparse_filter = [
+    # sparse doesn't correctly handle guard()
+    r'warning: context imbalance in .* - wrong count at exit',
+]
 
 # global variables
 
