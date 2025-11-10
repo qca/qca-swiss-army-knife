@@ -54,6 +54,17 @@ CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
                    '--max-line-length=90', '--show-types']
 
 checkpatch_filter = [
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_eht_non_mumimo_user', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_eht_sig_ndp', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_eht_sig_non_ofdma', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_non_ofdma_users', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_user_info', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_hal_rx_parse_usig_overflow', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_parse_he_sig_b1_mu', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_parse_he_sig_b2_mu', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_parse_he_sig_mu', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_rx_handle_ofdma_info', 'LONG_LINE'),
+    ('ath12k_wifi7_dp_mon_rx_populate_mu_user_info', 'LONG_LINE'),
     ('qmi_wlanfw_respond_mem_req_msg_v01', 'LONG_LINE'),
     ('qmi_wlanfw_host_cap_req_msg_v01', 'LONG_LINE'),
     ('qmi_wlfw_qdss_trace_config_download_req_msg_v01_ei', 'LONG_LINE'),
