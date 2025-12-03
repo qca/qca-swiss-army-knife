@@ -43,7 +43,7 @@ DEFAULT_JSON_FILE = 'board-%d.json' % DEFAULT_BD_API
 TYPE_LENGTH_SIZE = 8
 BIN_SUFFIX = '.bin'
 
-ATH10K_FIRMWARE_URL = 'https://github.com/kvalo/ath10k-firmware/commit'
+ATH10K_FIRMWARE_URL = 'https://git.codelinaro.org/clo/ath-firmware/ath10k-firmware/-/commit'
 
 ATH10K_BD_IE_BOARD = 0
 ATH10K_BD_IE_BOARD_EXT = 1
