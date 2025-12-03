@@ -44,11 +44,18 @@ BRANCH_BLACKLIST = [
     'msm',
 ]
 
+HW_SUBFOLDER_SEP = '@'
 
 @functools.total_ordering
 class Hardware():
     def get_path(self):
         return os.path.join(self.hw, self.hw_ver)
+
+    def get_dest_path(self):
+        final_hw_str = self.hw_ver
+        if HW_SUBFOLDER_SEP in final_hw_str:
+            final_hw_str = final_hw_str.replace(HW_SUBFOLDER_SEP, '/')
+        return os.path.join(self.hw, final_hw_str)
 
     def __eq__(self, other):
         return self.name == other.name
@@ -510,6 +517,109 @@ def pi(level, msg):
     print('%s%s' % (level * '\t', msg))
 
 
+# Whether it's Add, Update or Remove, we can follow the same procedure:
+# 1. delete all lines of WHENCE which containing ath12k/{hw_path}/xxx.
+# 2. insert the corresponding lines of filepaths right after the matching
+#    ath12k/HW version lines.
+# This approach handles Add, Update, Remove operations of WHENCE uniformly.
+def whence_update_extra(linux_firmware, filepaths, version, hw=None):
+    whencepath = os.path.join(linux_firmware, WHENCE_FILE)
+    if not os.path.exists(whencepath):
+        return None
+
+    with open(whencepath, "r") as f:
+        lines = f.readlines()
+
+    hw_path = hw.get_dest_path()
+    start_str = f"ath12k/{hw_path}"
+    end_str = f"ath12k/{hw_path}/Notice.txt"
+
+    filtered_lines = []
+    delete_flag = False
+
+    # 1. Begin to delete all the ath12k/WCN7850/hw2.0/ncm865/ related lines
+    # And if no such lines, no lines deleted.
+    for line in lines:
+        if not delete_flag:
+            if start_str in line:   # delete start from sub_fold line ex. hw2.0/ncm865
+                delete_flag = True
+                continue
+            else:
+                filtered_lines.append(line)
+        else:
+            if end_str in line:     # delete end from Notice.txt line
+                delete_flag = False
+                continue
+
+    # 2. Try to add 'Driver: ath12k' WCN7850/hw2.0 following lines in WHENCE
+    hw_name = hw.hw
+    hw_base_ver, extra_subdir = hw.hw_ver.split(HW_SUBFOLDER_SEP, 1)  # e.g. 'hw2.0', 'ncm865'
+    logger.debug("hw_name:%s hw_base_ver:%s extra_subdir:%s" % (hw_name, hw_base_ver, extra_subdir))
+
+    # 2.1) Scan the WHENCE file, make sure ath12k section exists
+    # get the base HW version line number insert new extra sub hw fold right after
+    #    '  File: ath12k/WCN7850/hw2.0/' or '  Version: ...WCN7850/hw2.0...'
+    base_prefix = f'ath12k/{hw_name}/{hw_base_ver}/'
+    driver_pat = re.compile(r'^Driver:\s+ath12k\b')
+    section_end    = re.compile(r'^-------+')  # treat --------- line as ath12k section end
+    section_start = None
+    insert_pos = None
+    for i, line in enumerate(filtered_lines):
+        if driver_pat.match(line):
+            section_start = i
+
+        # Locate the boundary between the base HW version <WCN7850/hw2.0> and other HW version
+        # to facilitate subsequent addition of our new hw sub version lines.
+        if base_prefix in line:
+            insert_pos = i + 1
+
+        # if reach ---- line, stop
+        if section_start and section_end.match(line):
+            break
+
+    if section_start is None:
+        logger.error("Can't find ath12k section in whencefile")
+        return None  # can't find ath12k line
+
+    if insert_pos is None:
+        logger.error("Can't find base HW line in whencefile")
+        return None  # can't find ath12k WCN7850/hw2.0 line
+
+    logger.debug("add_extra filepaths version:%s" % version)
+    logger.debug(filepaths)
+
+    # 2.2) construct new lines of new HW sub version
+    new_lines = []
+    license_relpath = None
+    for filepath in filepaths:
+        relpath = os.path.relpath(filepath, linux_firmware)
+        if relpath.endswith(NOTICE_FILE): # record Notice.txt here, will add later
+            license_relpath = relpath
+            continue
+        new_lines.append('File: %s\n' % (relpath))
+
+    if version:
+        ver_line = f'Version: {version}\n'
+        new_lines.append(ver_line)
+
+    # Add Notice line last here, ensure that Notice.txt is placed at the end
+    if license_relpath:
+        new_lines.append(f'File: %s\n' % (license_relpath))
+    else:
+        logger.error("Notice.txt is required !")
+
+    if not new_lines:
+        logger.error("No new_lines add, please check")
+        return None
+
+    # 2.3) write back to WHENCE file
+    filtered_lines[insert_pos:insert_pos] = new_lines
+    with open(whencepath, 'w') as f:
+        f.writelines(filtered_lines)
+
+    return whencepath
+
+
 # The WHENCE file update is implemented by using board-2.bin entry as
 # an "anchor". All entries (including File, Version and License) for
 # that hardware directory will be replaces by the new ones. As the
@@ -519,12 +629,15 @@ def pi(level, msg):
 # Only called during firmware updates. Board file updates don't need
 # changes in WHENCE and that's why this function doesn't support board
 # file changes.
-def whence_update(linux_firmware, filepaths, version):
+def whence_update(linux_firmware, filepaths, version, hw):
     whencepath = os.path.join(linux_firmware, WHENCE_FILE)
     license_relpath = None
 
     if not os.path.exists(whencepath):
         return None
+
+    if hw and (HW_SUBFOLDER_SEP in hw.hw_ver):
+        return whence_update_extra(linux_firmware, filepaths, version, hw)
 
     f = open(whencepath, 'r')
     buf = f.read()
@@ -567,12 +680,15 @@ def whence_update(linux_firmware, filepaths, version):
     return whencepath
 
 
-def whence_add(linux_firmware, filepaths, version=None):
+def whence_add(linux_firmware, filepaths, version=None, hw=None):
     whencepath = os.path.join(linux_firmware, WHENCE_FILE)
     license_relpath = None
 
     if not os.path.exists(whencepath):
         return None
+
+    if hw and (HW_SUBFOLDER_SEP in hw.hw_ver):
+        return whence_update_extra(linux_firmware, filepaths, version, hw)
 
     f = open(whencepath, 'r')
     buf = f.read()
@@ -861,7 +977,9 @@ def cmd_install(args):
             logger.debug('no firmware images found for %s' % (hw))
             continue
 
-        destdir = os.path.join(ath12kdir, hw.get_path())
+        dest_path = hw.get_dest_path()
+        destdir = os.path.join(ath12kdir, dest_path)
+        logger.debug("destdir:%s " % destdir)
 
         # install board files first as that's used as an "anchor" for
         # firmware files WHENCE updates
@@ -903,10 +1021,15 @@ def cmd_install(args):
         # remove notice and board files from to_remove
         if os.path.exists(destdir):
             for filename in os.listdir(destdir):
-                if filename in [NOTICE_FILE, 'board-2.bin']:
+                if filename in [NOTICE_FILE, 'board-2.bin', 'regdb.bin']:
                     continue
 
-                to_remove.append(filename)
+                full_path = os.path.join(destdir, filename)
+                if os.path.isdir(full_path):
+                    logger.debug("full_path:%s is a a sub HW version folder, will be handler in other HW instance" % full_path)
+                else:
+                     logger.debug("add filename:%s in to_remove" % to_remove)
+                     to_remove.append(filename)
 
         # investigate what changes are needed
         for filepath in fw.get_files_with_path():
@@ -944,10 +1067,10 @@ def cmd_install(args):
             # TODO: whence is not working with ath12k
             if action == 'update':
                 # updating an existing firmware file
-                whencepath = whence_update(linux_firmware, installed, fw.fw_ver)
+                whencepath = whence_update(linux_firmware, installed, fw.fw_ver, hw)
             else:
                 # adding a new firmware file
-                whencepath = whence_add(linux_firmware, installed, fw.fw_ver)
+                whencepath = whence_add(linux_firmware, installed, fw.fw_ver, hw)
 
             if whencepath is not None:
                 installed.append(whencepath)
@@ -955,11 +1078,7 @@ def cmd_install(args):
             git_add(args, linux_firmware, installed)
 
             for filename in to_remove:
-                filepath = os.path.join(ath12kdir, hw.get_path(), filename)
-
-                if os.path.basename(filepath) == 'regdb.bin':
-                    logger.debug('ignore %s so that it is not removed from target' % (filepath))
-                    continue
+                filepath = os.path.join(ath12kdir, dest_path, filename)
 
                 logger.info('\trm %s' % (filepath))
 
